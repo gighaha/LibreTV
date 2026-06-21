@@ -21,7 +21,7 @@ const SITE_CONFIG = {
 };
 
 // API站点配置
-const API_SITES = {
+const API_SITES_all = {
     dyttzy: {
         api: 'http://caiji.dyttzyapi.com/api.php/provide/vod',
         name: '电影天堂资源',
@@ -121,6 +121,15 @@ const API_SITES = {
     },
 };
 
+// API站点配置
+const API_SITES = {
+    bfzy: {
+        api: 'https://bfzyapi.com/api.php/provide/vod',
+        name: '暴风资源',
+    }
+};
+
+
 // 定义合并方法
 function extendAPISites(newSites) {
     Object.assign(API_SITES, newSites);
@@ -135,7 +144,7 @@ window.extendAPISites = extendAPISites;
 const AGGREGATED_SEARCH_CONFIG = {
     enabled: true,             // 是否启用聚合搜索
     timeout: 8000,            // 单个源超时时间（毫秒）
-    maxResults: 10000,          // 最大结果数量
+    maxResults: 100,          // 最大结果数量
     parallelRequests: true,   // 是否并行请求所有源
     showSourceBadges: true    // 是否显示来源徽章
 };
@@ -176,7 +185,7 @@ const PLAYER_CONFIG = {
     height: '600',
     timeout: 15000,  // 播放器加载超时时间
     filterAds: true,  // 是否启用广告过滤
-    autoPlayNext: true,  // 默认启用自动连播功能
+    autoPlayNext: false,  // 默认启用自动连播功能
     adFilteringEnabled: true, // 默认开启分片广告过滤
     adFilteringStorage: 'adFilteringEnabled' // 存储广告过滤设置的键名
 };
