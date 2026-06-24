@@ -21,7 +21,7 @@ const SITE_CONFIG = {
 };
 
 // API站点配置
-const API_SITES_all = {
+const API_SITES = {
     dyttzy: {
         api: 'http://caiji.dyttzyapi.com/api.php/provide/vod',
         name: '电影天堂资源',
@@ -122,7 +122,7 @@ const API_SITES_all = {
 };
 
 // API站点配置
-const API_SITES = {
+const API_SITES_old = {
     bfzy: {
         api: 'https://bfzyapi.com/api.php/provide/vod',
         name: '暴风资源',
