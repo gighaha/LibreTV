@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', function () {
         localStorage.setItem(PLAYER_CONFIG.adFilteringStorage, 'true');
 
         // 默认启用豆瓣功能
-        localStorage.setItem('doubanEnabled', 'true');
+        localStorage.setItem('doubanEnabled', 'false');
 
         // 标记已初始化默认值
         localStorage.setItem('hasInitializedDefaults', 'true');
