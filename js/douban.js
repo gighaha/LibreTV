@@ -55,6 +55,11 @@ const doubanPageSize = 16; // 一次显示的项目数量
 
 // 初始化豆瓣功能
 function initDouban() {
+    // 如果是首次访问，默认关闭豆瓣推荐
+    if (localStorage.getItem('doubanEnabled') === null) {
+        localStorage.setItem('doubanEnabled', 'false');
+    }
+    
     // 设置豆瓣开关的初始状态
     const doubanToggle = document.getElementById('doubanToggle');
     if (doubanToggle) {
