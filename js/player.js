@@ -270,7 +270,7 @@ function initializePageContent() {
             let lastSave = 0;
             art.video.addEventListener('timeupdate', function() {
                 const now = Date.now();
-                if (now - lastSave > 5000) { // 每5秒最多保存一次
+                if (now - lastSave > 30000) { // 每30秒最多保存一次
                     saveCurrentProgress();
                     lastSave = now;
                 }
@@ -1223,13 +1223,7 @@ function formatTime(seconds) {
 
 // 开始定期保存播放进度
 function startProgressSaveInterval() {
-    // 清除可能存在的旧计时器
-    if (progressSaveInterval) {
-        clearInterval(progressSaveInterval);
-    }
-
-    // 每30秒保存一次播放进度
-    progressSaveInterval = setInterval(saveCurrentProgress, 30000);
+    // 播放进度保存已由 timeupdate 事件驱动，无需额外 setInterval
 }
 
 // 保存当前播放进度
