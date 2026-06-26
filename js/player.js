@@ -1167,6 +1167,13 @@ function saveToHistory() {
         if (history.length > 50) history.splice(50);
 
         localStorage.setItem('viewingHistory', JSON.stringify(history));
+
+        // 异步推送到云端
+        if (typeof CloudSync !== 'undefined') {
+            CloudSync.isEnabled().then(enabled => {
+                if (enabled) CloudSync.debouncedSync(JSON.parse(localStorage.getItem('viewingHistory') || '[]'));
+            });
+        }
     } catch (e) {
     }
 }
@@ -1261,6 +1268,13 @@ function saveCurrentProgress() {
                         history[idx].duration = duration;
                         history[idx].timestamp = Date.now();
                         localStorage.setItem('viewingHistory', JSON.stringify(history));
+
+                        // 同步播放进度到云端
+                        if (typeof CloudSync !== 'undefined' && history[idx].showIdentifier) {
+                            CloudSync.isEnabled().then(enabled => {
+                                if (enabled) CloudSync.updateProgress(history[idx].showIdentifier, currentTime, duration);
+                            });
+                        }
                     }
                 }
             }

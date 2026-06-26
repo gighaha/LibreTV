@@ -378,10 +378,66 @@ function getViewingHistory() {
     }
 }
 
+// 从云端加载历史并同步到本地
+async function syncHistoryFromCloud() {
+    if (typeof CloudSync === 'undefined') return;
+    const enabled = await CloudSync.isEnabled();
+    if (!enabled) return;
+    try {
+        const cloudHistory = await CloudSync.load();
+        if (cloudHistory && cloudHistory.length > 0) {
+            const localHistory = getViewingHistory();
+            const merged = mergeHistory(cloudHistory, localHistory);
+            localStorage.setItem('viewingHistory', JSON.stringify(merged));
+        } else {
+            // 云端为空，把本地数据推上去
+            const localHistory = getViewingHistory();
+            if (localHistory.length > 0) {
+                CloudSync.sync(localHistory);
+            }
+        }
+    } catch (e) {
+        console.warn('[Sync] 从云端加载失败:', e.message);
+    }
+}
+
+// 合并云端和本地历史（以时间戳较新的为准）
+function mergeHistory(cloud, local) {
+    const map = new Map();
+    for (const item of cloud) {
+        const key = item.showIdentifier || `${item.sourceName}_${item.title}`;
+        map.set(key, item);
+    }
+    for (const item of local) {
+        const key = item.showIdentifier || `${item.sourceName}_${item.title}`;
+        const existing = map.get(key);
+        if (!existing || (item.timestamp || 0) > (existing.timestamp || 0)) {
+            map.set(key, item);
+        }
+    }
+    const merged = Array.from(map.values());
+    merged.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    return merged.slice(0, 50);
+}
+
+// 异步推送本地历史到云端
+function pushHistoryToCloud() {
+    if (typeof CloudSync === 'undefined') return;
+    // 先检查是否启用，不阻塞
+    CloudSync.isEnabled().then(enabled => {
+        if (!enabled) return;
+        const history = getViewingHistory();
+        CloudSync.debouncedSync(history);
+    });
+}
+
 // 加载观看历史并渲染
-function loadViewingHistory() {
+async function loadViewingHistory() {
     const historyList = document.getElementById('historyList');
     if (!historyList) return;
+
+    // 先从云端同步最新数据
+    await syncHistoryFromCloud();
 
     const history = getViewingHistory();
 
@@ -486,11 +542,21 @@ function deleteHistoryItem(encodedUrl) {
         // 获取当前历史记录
         const history = getViewingHistory();
 
+        // 找到要删除的项，获取其showIdentifier用于云端删除
+        const itemToDelete = history.find(item => item.url === url);
+
         // 过滤掉要删除的项
         const newHistory = history.filter(item => item.url !== url);
 
         // 保存回localStorage
         localStorage.setItem('viewingHistory', JSON.stringify(newHistory));
+
+        // 同步删除云端记录
+        if (itemToDelete && itemToDelete.showIdentifier && typeof CloudSync !== 'undefined') {
+            CloudSync.isEnabled().then(enabled => {
+                if (enabled) CloudSync.deleteItem(itemToDelete.showIdentifier);
+            });
+        }
 
         // 重新加载历史记录显示
         loadViewingHistory();
@@ -760,6 +826,9 @@ function addToViewingHistory(videoInfo) {
 
         // 保存到本地存储
         localStorage.setItem('viewingHistory', JSON.stringify(history));
+
+        // 异步推送到云端
+        pushHistoryToCloud();
     } catch (e) {
         // console.error('保存观看历史失败:', e);
     }
@@ -769,6 +838,12 @@ function addToViewingHistory(videoInfo) {
 function clearViewingHistory() {
     try {
         localStorage.removeItem('viewingHistory');
+        // 同步清空云端
+        if (typeof CloudSync !== 'undefined') {
+            CloudSync.isEnabled().then(enabled => {
+                if (enabled) CloudSync.clearAll();
+            });
+        }
         loadViewingHistory(); // 重新加载空的历史记录
         showToast('观看历史已清空', 'success');
     } catch (e) {
