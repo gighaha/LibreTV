@@ -123,17 +123,19 @@ div.player-loading-text {
     display: block !important;
 }
 
-/* 全屏时底部控制栏不被浏览器工具栏遮挡 */
-.art-bottom {
-    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+/* 网页全屏时底部控制栏留出空间防止被浏览器工具栏遮挡 */
+.art-video-player.art-fullscreen-web .art-bottom {
+    padding-bottom: 30px !important;
 }
 
-.art-setting {
-    bottom: calc(30px + env(safe-area-inset-bottom, 0px)) !important;
+.art-video-player.art-fullscreen-web .art-settings {
+    bottom: 30px !important;
+    max-height: calc(100% - 80px) !important;
 }
 
-.art-contextmenus {
-    bottom: calc(30px + env(safe-area-inset-bottom, 0px)) !important;
+.art-video-player.art-fullscreen-web .art-contextmenus {
+    bottom: 30px !important;
+    max-height: calc(100% - 80px) !important;
 }
 
 /* Fix for Chrome-specific issues */
@@ -159,15 +161,6 @@ div.player-loading-text {
 #player {
     width: 100%;
     height: 60vh; /* 视频播放器高度 */
-}
-
-@media screen and (max-width: 768px) {
-    body, html {
-        height: 100dvh;
-    }
-    .art-video-player, .art-video-player video {
-        max-height: 100dvh !important;
-    }
 }
 
 .loading-container {
@@ -342,23 +335,8 @@ input:checked + .slider:before {
 }
 
 /* 网页全屏时底部控制栏安全区适配 */
-.art-video-player.art-fullscreen-web .art-bottom {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-.art-video-player.art-fullscreen-web .art-settings {
-    bottom: env(safe-area-inset-bottom, 0px);
-}
-
-.art-video-player.art-fullscreen-web .art-contextmenus {
-    bottom: env(safe-area-inset-bottom, 0px);
-}
-
-/* 移动端全屏时使用动态视口高度 */
-@media screen and (max-width: 768px) {
-    .art-video-player.art-fullscreen-web {
-        height: 100dvh !important;
-    }
+.art-video-player.art-fullscreen-web {
+    height: 100% !important;
 }
 
 /* 资源信息卡片区 */

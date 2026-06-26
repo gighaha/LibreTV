@@ -623,7 +623,16 @@ function initPlayer(videoUrl) {
             clearTimeout(hideTimer);
         }
 
-        if (!isWeb) {
+        if (isWeb) {
+            if (isFullScreen) {
+                fitWebFullscreen();
+                window.visualViewport && window.visualViewport.addEventListener('resize', fitWebFullscreen);
+            } else {
+                window.visualViewport && window.visualViewport.removeEventListener('resize', fitWebFullscreen);
+                const pc = document.getElementById('playerContainer');
+                if (pc) { pc.style.height = ''; pc.style.position = ''; pc.style.top = ''; }
+            }
+        } else {
             if (window.screen.orientation && window.screen.orientation.lock) {
                 window.screen.orientation.lock('landscape')
                     .then(() => {
@@ -632,6 +641,22 @@ function initPlayer(videoUrl) {
                     });
             }
         }
+    }
+
+    function fitWebFullscreen() {
+        const pc = document.getElementById('playerContainer');
+        if (!pc) return;
+        const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        const vw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+        const offset = window.visualViewport ? window.visualViewport.offsetTop : 0;
+        pc.style.position = 'fixed';
+        pc.style.top = offset + 'px';
+        pc.style.left = '0';
+        pc.style.width = vw + 'px';
+        pc.style.height = vh + 'px';
+        pc.style.zIndex = '10000';
+        pc.style.margin = '0';
+        pc.style.maxWidth = 'none';
     }
 
     // 播放器加载完成后初始隐藏工具栏
