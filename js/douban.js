@@ -55,17 +55,7 @@ const doubanPageSize = 16; // 一次显示的项目数量
 
 // 初始化豆瓣功能
 function initDouban() {
-    // 强制隐藏豆瓣区域，确保默认不显示
-    const doubanArea = document.getElementById('doubanArea');
-    if (doubanArea) {
-        doubanArea.classList.add('hidden');
-    }
-    
-    // 如果是首次访问，默认关闭豆瓣推荐
-    if (localStorage.getItem('doubanEnabled') === null) {
-        localStorage.setItem('doubanEnabled', 'false');
-    }
-    
+
     // 设置豆瓣开关的初始状态
     const doubanToggle = document.getElementById('doubanToggle');
     if (doubanToggle) {
