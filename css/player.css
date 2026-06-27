@@ -6,6 +6,8 @@ body, html {
     background-color: #0f1622;
     color: white;
     padding-top: 37px;
+    overscroll-behavior: none;
+    overflow: hidden;
 }
 
 /* Critical header and navigation styles */

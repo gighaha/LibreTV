@@ -1038,6 +1038,9 @@ function showVideoPlayer(url) {
     videoPlayerFrame = document.createElement('iframe');
     videoPlayerFrame.id = 'VideoPlayerFrame';
     videoPlayerFrame.className = 'fixed w-full h-screen z-40';
+    videoPlayerFrame.style.overscrollBehavior = 'none';
+    videoPlayerFrame.style.overflow = 'hidden';
+    videoPlayerFrame.setAttribute('scrolling', 'no');
     videoPlayerFrame.src = url;
     document.body.appendChild(videoPlayerFrame);
     // 将焦点移入iframe
