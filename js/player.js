@@ -96,6 +96,12 @@ Artplayer.FULLSCREEN_WEB_IN_BODY = true;
 
 // 页面加载
 document.addEventListener('DOMContentLoaded', function () {
+    // 锁定body滚动，防止iOS滑动穿透到下层页面
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+    document.body.style.height = '100%';
+
     // 先检查用户是否已通过密码验证
     if (!isPasswordVerified()) {
         // 隐藏加载提示
