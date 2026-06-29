@@ -408,7 +408,7 @@ function showShortcutHint(text, direction) {
 // 初始化播放器
 // 格式化网速显示
 function formatSpeed(bps) {
-    if (bps <= 0) return '0 KB/s';
+    if (!bps || bps <= 0) return '0 KB/s';
     if (bps < 1024) return `${Math.round(bps)} B/s`;
     if (bps < 1024 * 1024) return `${(bps / 1024).toFixed(1)} KB/s`;
     return `${(bps / (1024 * 1024)).toFixed(2)} MB/s`;
@@ -419,6 +419,7 @@ function createSpeedDisplay() {
     const speedEl = document.createElement('div');
     speedEl.id = 'speedDisplay';
     speedEl.className = 'art-control art-speed-display';
+    speedEl.setAttribute('title', '加载网速');
     speedEl.innerHTML = `
         <svg class="art-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
@@ -436,6 +437,46 @@ function updateSpeedDisplay(bps) {
     }
 }
 
+// 查找控制栏右侧容器
+function findControlsRight() {
+    const selectors = [
+        '.art-controls-right',
+        '.art-control-right',
+        '.art-right',
+        '.artplayer-controls-right'
+    ];
+    for (const selector of selectors) {
+        const el = document.querySelector(selector);
+        if (el) return el;
+    }
+    // 兜底：查找所有控制栏容器中最右边的
+    const controls = document.querySelector('.art-controls');
+    if (controls) {
+        return controls;
+    }
+    return null;
+}
+
+// 查找设置按钮
+function findSettingButton(container) {
+    const selectors = [
+        '.art-setting',
+        '.art-icon-setting',
+        '[aria-label="设置"]',
+        '.art-control:has(.art-icon-settings)'
+    ];
+    for (const selector of selectors) {
+        const el = container.querySelector(selector);
+        if (el) return el;
+    }
+    // 兜底：找倒数第二个控制元素（通常全屏在最后）
+    const allControls = container.querySelectorAll('.art-control');
+    if (allControls.length >= 2) {
+        return allControls[allControls.length - 2];
+    }
+    return null;
+}
+
 // 初始化网速监测
 function initSpeedMonitor(hls, video) {
     const oldSpeedEl = document.getElementById('speedDisplay');
@@ -444,67 +485,99 @@ function initSpeedMonitor(hls, video) {
     }
     
     const waitForControls = setInterval(() => {
-        const controlsRight = document.querySelector('.art-controls-right');
+        const controlsRight = findControlsRight();
         if (controlsRight && art) {
             clearInterval(waitForControls);
             
             const speedEl = createSpeedDisplay();
-            const settingBtn = controlsRight.querySelector('.art-setting');
-            if (settingBtn) {
+            const settingBtn = findSettingButton(controlsRight);
+            if (settingBtn && settingBtn.parentNode) {
                 settingBtn.parentNode.insertBefore(speedEl, settingBtn);
             } else {
-                controlsRight.insertBefore(speedEl, controlsRight.firstChild);
+                controlsRight.appendChild(speedEl);
             }
             
             if (speedMonitorInterval) {
                 clearInterval(speedMonitorInterval);
             }
             
-            lastLoadedBytes = 0;
-            lastSpeedCheckTime = Date.now();
+            let smoothedBps = 0;
             
             if (hls) {
-                // HLS.js 模式：监听分段加载事件
+                // HLS.js 模式：使用 bandwidthEstimate 作为主要数据源
+                // FRAG_LOADED 作为辅助数据
                 hls.on(Hls.Events.FRAG_LOADED, function(event, data) {
-                    if (data.stats && data.stats.loaded) {
-                        lastLoadedBytes += data.stats.loaded;
+                    try {
+                        if (data && data.stats) {
+                            const loaded = data.stats.loaded || 0;
+                            const loading = data.stats.loading;
+                            let loadTimeMs = 0;
+                            
+                            // 计算加载时间（loading 可能是对象 {start, end} 或数字）
+                            if (typeof loading === 'object' && loading) {
+                                loadTimeMs = (loading.end || 0) - (loading.start || 0);
+                            } else if (typeof loading === 'number') {
+                                loadTimeMs = loading;
+                            }
+                            
+                            if (loaded > 0 && loadTimeMs > 0) {
+                                const instantBps = (loaded * 8) / (loadTimeMs / 1000);
+                                if (smoothedBps === 0) {
+                                    smoothedBps = instantBps;
+                                } else {
+                                    smoothedBps = smoothedBps * 0.6 + instantBps * 0.4;
+                                }
+                                updateSpeedDisplay(smoothedBps);
+                            }
+                        }
+                    } catch (e) {
+                        // 忽略错误
                     }
                 });
                 
+                // 每秒用 bandwidthEstimate 校准一次
                 speedMonitorInterval = setInterval(() => {
-                    const now = Date.now();
-                    const timeDiff = (now - lastSpeedCheckTime) / 1000;
-                    
-                    if (timeDiff > 0 && lastLoadedBytes > 0) {
-                        const bps = (lastLoadedBytes * 8) / timeDiff;
-                        updateSpeedDisplay(bps);
-                        
-                        lastLoadedBytes = 0;
-                        lastSpeedCheckTime = now;
+                    try {
+                        if (hls.bandwidthEstimate && hls.bandwidthEstimate > 0) {
+                            if (smoothedBps === 0) {
+                                smoothedBps = hls.bandwidthEstimate;
+                            } else {
+                                smoothedBps = smoothedBps * 0.85 + hls.bandwidthEstimate * 0.15;
+                            }
+                            updateSpeedDisplay(smoothedBps);
+                        }
+                    } catch (e) {
+                        // 忽略错误
                     }
                 }, 1000);
             } else if (video) {
-                // 原生播放模式：通过 buffered 估算
+                // 原生播放模式：通过 buffered + 分辨率估算
                 let lastBufferedEnd = 0;
+                let lastBufferCheckTime = Date.now();
                 
                 speedMonitorInterval = setInterval(() => {
                     try {
-                        if (video.buffered.length > 0) {
+                        if (video.buffered && video.buffered.length > 0) {
                             const bufferedEnd = video.buffered.end(video.buffered.length - 1);
-                            const timeDiff = (Date.now() - lastSpeedCheckTime) / 1000;
+                            const now = Date.now();
+                            const timeDiff = (now - lastBufferCheckTime) / 1000;
                             
-                            if (timeDiff > 0 && bufferedEnd > lastBufferedEnd) {
-                                // 估算：假设视频比特率约为 2Mbps（这是粗略估算）
-                                // 使用 videoWidth 和 videoHeight 来更准确估算
+                            if (timeDiff > 0.5 && bufferedEnd > lastBufferedEnd) {
                                 const estimatedBitrate = estimateVideoBitrate(video);
                                 const loadedSeconds = bufferedEnd - lastBufferedEnd;
                                 const loadedBits = loadedSeconds * estimatedBitrate;
-                                const bps = loadedBits / timeDiff;
-                                updateSpeedDisplay(bps);
+                                const instantBps = loadedBits / timeDiff;
+                                
+                                if (smoothedBps === 0) {
+                                    smoothedBps = instantBps;
+                                } else {
+                                    smoothedBps = smoothedBps * 0.7 + instantBps * 0.3;
+                                }
+                                updateSpeedDisplay(smoothedBps);
                             }
                             
                             lastBufferedEnd = bufferedEnd;
-                            lastSpeedCheckTime = Date.now();
+                            lastBufferCheckTime = now;
                         }
                     } catch (e) {
                         // 忽略错误
@@ -516,7 +589,7 @@ function initSpeedMonitor(hls, video) {
     
     setTimeout(() => {
         clearInterval(waitForControls);
-    }, 10000);
+    }, 15000);
 }
 
 // 估算视频比特率（用于原生播放模式）
