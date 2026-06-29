@@ -409,7 +409,6 @@ function showShortcutHint(text, direction) {
 // 格式化网速显示（输入：bps 位每秒）
 function formatSpeed(bps) {
     if (!bps || bps <= 0) return '0 KB/s';
-    // 转换为字节每秒再计算
     const bytesPerSec = bps / 8;
     if (bytesPerSec < 1024) return `${Math.round(bytesPerSec)} B/s`;
     if (bytesPerSec < 1024 * 1024) return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
@@ -422,12 +421,7 @@ function createSpeedDisplay() {
     speedEl.id = 'speedDisplay';
     speedEl.className = 'art-control art-speed-display';
     speedEl.setAttribute('title', '加载网速');
-    speedEl.innerHTML = `
-        <svg class="art-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-        </svg>
-        <span class="art-speed-text">-- KB/s</span>
-    `;
+    speedEl.innerHTML = `<span class="art-speed-text">-- KB/s</span>`;
     return speedEl;
 }
 
@@ -439,42 +433,39 @@ function updateSpeedDisplay(bps) {
     }
 }
 
-// 查找控制栏右侧容器
-function findControlsRight() {
+// 查找截图按钮
+function findScreenshotButton(container) {
     const selectors = [
-        '.art-controls-right',
-        '.art-control-right',
-        '.art-right',
-        '.artplayer-controls-right'
-    ];
-    for (const selector of selectors) {
-        const el = document.querySelector(selector);
-        if (el) return el;
-    }
-    // 兜底：查找所有控制栏容器中最右边的
-    const controls = document.querySelector('.art-controls');
-    if (controls) {
-        return controls;
-    }
-    return null;
-}
-
-// 查找设置按钮
-function findSettingButton(container) {
-    const selectors = [
-        '.art-setting',
-        '.art-icon-setting',
-        '[aria-label="设置"]',
-        '.art-control:has(.art-icon-settings)'
+        '.art-screenshot',
+        '.art-icon-screenshot',
+        '[aria-label="截图"]',
+        '.art-control[title="截图"]'
     ];
     for (const selector of selectors) {
         const el = container.querySelector(selector);
         if (el) return el;
     }
-    // 兜底：找倒数第二个控制元素（通常全屏在最后）
+    // 兜底：通过图标特征查找
     const allControls = container.querySelectorAll('.art-control');
-    if (allControls.length >= 2) {
-        return allControls[allControls.length - 2];
+    for (const ctrl of allControls) {
+        const svg = ctrl.querySelector('svg');
+        if (svg && svg.innerHTML.includes('camera') || ctrl.title === '截图') {
+            return ctrl;
+        }
+    }
+    return null;
+}
+
+// 查找控制栏右侧容器
+function findControlsRight() {
+    const selectors = [
+        '.art-controls-right',
+        '.art-control-right',
+        '.art-right'
+    ];
+    for (const selector of selectors) {
+        const el = document.querySelector(selector);
+        if (el) return el;
     }
     return null;
 }
@@ -486,111 +477,128 @@ function initSpeedMonitor(hls, video) {
         oldSpeedEl.remove();
     }
     
+    // 等待控制栏就绪
     const waitForControls = setInterval(() => {
         const controlsRight = findControlsRight();
-        if (controlsRight && art) {
-            clearInterval(waitForControls);
-            
-            const speedEl = createSpeedDisplay();
-            const settingBtn = findSettingButton(controlsRight);
-            if (settingBtn && settingBtn.parentNode) {
-                settingBtn.parentNode.insertBefore(speedEl, settingBtn);
-            } else {
-                controlsRight.appendChild(speedEl);
-            }
-            
-            if (speedMonitorInterval) {
-                clearInterval(speedMonitorInterval);
-            }
-            
-            // 滑动窗口：记录最近3秒内的字节下载量
-            const byteWindow = [];
-            const WINDOW_SIZE = 3; // 窗口大小（秒）
-            let currentSecondBytes = 0; // 当前秒累计字节
-            let lastUpdateTime = Date.now();
-            let currentBps = 0;
-            
-            function addBytes(bytes) {
-                currentSecondBytes += bytes;
-            }
-            
-            function updateSpeedDisplayFromWindow() {
-                const now = Date.now();
-                const elapsed = (now - lastUpdateTime) / 1000;
-                
-                if (elapsed >= 1) {
-                    // 将当前秒的字节数加入窗口
-                    byteWindow.push(currentSecondBytes);
-                    if (byteWindow.length > WINDOW_SIZE) {
-                        byteWindow.shift();
-                    }
-                    
-                    // 计算窗口内的平均网速
-                    const totalBytes = byteWindow.reduce((a, b) => a + b, 0);
-                    const windowSeconds = byteWindow.length;
-                    const avgBps = windowSeconds > 0 ? (totalBytes * 8) / windowSeconds : 0;
-                    
-                    // 如果当前秒没有数据，加速下降
-                    if (currentSecondBytes === 0) {
-                        currentBps = currentBps * 0.3;
-                    } else {
-                        // 有数据时：上升快，下降慢
-                        if (avgBps > currentBps) {
-                            currentBps = currentBps * 0.2 + avgBps * 0.8;
-                        } else {
-                            currentBps = currentBps * 0.7 + avgBps * 0.3;
-                        }
-                    }
-                    
-                    if (currentBps < 100) currentBps = 0;
-                    
-                    updateSpeedDisplay(currentBps);
-                    
-                    // 重置当前秒
-                    currentSecondBytes = 0;
-                    lastUpdateTime = now;
-                }
-            }
-            
-            if (hls) {
-                // HLS.js 模式：通过 FRAG_LOADED 统计实际下载字节
-                hls.on(Hls.Events.FRAG_LOADED, function(event, data) {
-                    try {
-                        if (data && data.stats && data.stats.loaded) {
-                            addBytes(data.stats.loaded);
-                        }
-                    } catch (e) {}
-                });
-                
-                // 每秒更新一次显示
-                speedMonitorInterval = setInterval(updateSpeedDisplayFromWindow, 250);
-            } else if (video) {
-                // 原生播放模式：通过 buffered + 分辨率估算
-                let lastBufferedEnd = 0;
-                
-                function checkBuffer() {
-                    try {
-                        if (video.buffered && video.buffered.length > 0) {
-                            const bufferedEnd = video.buffered.end(video.buffered.length - 1);
-                            if (bufferedEnd > lastBufferedEnd) {
-                                const loadedSeconds = bufferedEnd - lastBufferedEnd;
-                                const estimatedBitrate = estimateVideoBitrate(video);
-                                const loadedBytes = (loadedSeconds * estimatedBitrate) / 8;
-                                addBytes(loadedBytes);
-                            }
-                            lastBufferedEnd = bufferedEnd;
-                        }
-                    } catch (e) {}
-                }
-                
-                // 每250ms检查一次buffer，更新窗口
-                speedMonitorInterval = setInterval(() => {
-                    checkBuffer();
-                    updateSpeedDisplayFromWindow();
-                }, 250);
-            }
+        if (!controlsRight || !art) return;
+        
+        clearInterval(waitForControls);
+        
+        // 创建并插入网速显示（放到截图按钮左边）
+        const speedEl = createSpeedDisplay();
+        const screenshotBtn = findScreenshotButton(controlsRight);
+        if (screenshotBtn && screenshotBtn.parentNode) {
+            screenshotBtn.parentNode.insertBefore(speedEl, screenshotBtn);
+        } else {
+            // 找不到截图按钮就放到右侧容器最前面
+            controlsRight.insertBefore(speedEl, controlsRight.firstChild);
         }
-    }, 100);
+        
+        // 清理旧的计时器
+        if (speedMonitorInterval) {
+            clearInterval(speedMonitorInterval);
+        }
+        
+        let totalLoadedBytes = 0;
+        let lastCheckTime = Date.now();
+        let displayBps = 0;
+        let perfObserver = null;
+        
+        function onBytesLoaded(bytes) {
+            totalLoadedBytes += bytes;
+        }
+        
+        // 使用 PerformanceObserver 监控网络请求（最准确）
+        try {
+            if (typeof PerformanceObserver !== 'undefined') {
+                perfObserver = new PerformanceObserver((list) => {
+                    const entries = list.getEntries();
+                    for (const entry of entries) {
+                        if (entry.initiatorType === 'video' || entry.initiatorType === 'xmlhttprequest' || entry.initiatorType === 'fetch') {
+                            if (entry.transferSize && entry.transferSize > 0) {
+                                onBytesLoaded(entry.transferSize);
+                            } else if (entry.encodedBodySize && entry.encodedBodySize > 0) {
+                                onBytesLoaded(entry.encodedBodySize);
+                            }
+                        }
+                    }
+                });
+                perfObserver.observe({ entryTypes: ['resource'] });
+            }
+        } catch (e) {
+            // PerformanceObserver 不可用，忽略
+        }
+        
+        // 每秒计算一次网速
+        speedMonitorInterval = setInterval(() => {
+            const now = Date.now();
+            const timeDiff = (now - lastCheckTime) / 1000;
+            
+            if (timeDiff > 0) {
+                const instantBps = (totalLoadedBytes * 8) / timeDiff;
+                
+                if (totalLoadedBytes === 0) {
+                    // 没有数据，快速下降
+                    displayBps = displayBps * 0.2;
+                } else {
+                    // 有数据，平滑过渡
+                    if (instantBps > displayBps) {
+                        displayBps = displayBps * 0.3 + instantBps * 0.7;
+                    } else {
+                        displayBps = displayBps * 0.6 + instantBps * 0.4;
+                    }
+                }
+                
+                if (displayBps < 800) displayBps = 0; // 小于 100 B/s 显示 0
+                
+                updateSpeedDisplay(displayBps);
+                
+                // 重置
+                totalLoadedBytes = 0;
+                lastCheckTime = now;
+            }
+        }, 1000);
+        
+        // 如果是 WebKit 或原生播放，再加上 buffered 估算作为补充
+        if (video && (!hls || isWebkit)) {
+            const bufferCheckInterval = setInterval(() => {
+                try {
+                    if (video.buffered && video.buffered.length > 0) {
+                        const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+                        const lastBufferedEnd = bufferCheckInterval._lastEnd || 0;
+                        
+                        if (bufferedEnd > lastBufferedEnd) {
+                            const loadedSeconds = bufferedEnd - lastBufferedEnd;
+                            const estimatedBitrate = estimateVideoBitrate(video);
+                            const loadedBytes = (loadedSeconds * estimatedBitrate) / 8;
+                            onBytesLoaded(loadedBytes);
+                        }
+                        
+                        bufferCheckInterval._lastEnd = bufferedEnd;
+                    }
+                } catch (e) {}
+            }, 500);
+            
+            // 保存清理函数引用
+            const originalDestroy = destroySpeedMonitor;
+            destroySpeedMonitor = function() {
+                clearInterval(bufferCheckInterval);
+                if (perfObserver) {
+                    try { perfObserver.disconnect(); } catch (e) {}
+                }
+                originalDestroy();
+            };
+        } else {
+            // HLS模式也保存perfObserver清理
+            const originalDestroy = destroySpeedMonitor;
+            destroySpeedMonitor = function() {
+                if (perfObserver) {
+                    try { perfObserver.disconnect(); } catch (e) {}
+                }
+                originalDestroy();
+            };
+        }
+    }, 200);
     
     setTimeout(() => {
         clearInterval(waitForControls);

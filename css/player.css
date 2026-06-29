@@ -400,32 +400,25 @@ input:checked + .slider:before {
 .art-speed-display {
     display: flex !important;
     align-items: center;
-    gap: 4px;
+    justify-content: center;
     cursor: default;
     user-select: none;
-}
-
-.art-speed-display .art-icon {
-    width: 16px;
-    height: 16px;
-    flex-shrink: 0;
+    padding: 0 8px;
+    min-width: 70px;
 }
 
 .art-speed-text {
     font-size: 12px;
     white-space: nowrap;
     font-family: monospace;
+    line-height: 1;
 }
 
 /* 移动端适配 */
 @media (max-width: 640px) {
     .art-speed-display {
-        gap: 2px;
-    }
-    
-    .art-speed-display .art-icon {
-        width: 14px;
-        height: 14px;
+        min-width: 60px;
+        padding: 0 6px;
     }
     
     .art-speed-text {
