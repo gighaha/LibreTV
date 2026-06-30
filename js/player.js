@@ -449,35 +449,6 @@ function updateSpeedDisplay(bytesPerSec) {
     }
 }
 
-// 查找截图按钮
-function findScreenshotButton(container) {
-    const allControls = container.querySelectorAll('.art-control');
-    for (const ctrl of allControls) {
-        const title = ctrl.getAttribute('title') || ctrl.getAttribute('aria-label') || '';
-        if (title.includes('截图') || title.includes('screenshot')) {
-            return ctrl;
-        }
-        const svg = ctrl.querySelector('svg');
-        if (svg && (svg.innerHTML.includes('camera') || svg.innerHTML.includes('photo'))) {
-            return ctrl;
-        }
-    }
-    return null;
-}
-
-// 查找控制栏右侧容器
-function findControlsRight() {
-    const selectors = [
-        '.art-controls-right',
-        '.art-control-right'
-    ];
-    for (const selector of selectors) {
-        const el = document.querySelector(selector);
-        if (el) return el;
-    }
-    return null;
-}
-
 // 初始化网速监测
 function initSpeedMonitor(hls, video) {
     // 先移除旧的
@@ -494,109 +465,115 @@ function initSpeedMonitor(hls, video) {
     
     if (!video) return;
     
-    // 等待控制栏就绪
-    const waitForControls = setInterval(() => {
-        const controlsRight = findControlsRight();
-        if (!controlsRight || !art) return;
-        
-        clearInterval(waitForControls);
-        
-        // 创建网速显示元素
-        const speedEl = createSpeedDisplay();
-        
-        // 插入到截图按钮左边
-        const screenshotBtn = findScreenshotButton(controlsRight);
-        if (screenshotBtn && screenshotBtn.parentNode) {
-            screenshotBtn.parentNode.insertBefore(speedEl, screenshotBtn);
+    // 创建网速显示元素并插入到播放器容器
+    const speedEl = createSpeedDisplay();
+    const playerContainer = document.getElementById('player');
+    if (playerContainer) {
+        playerContainer.appendChild(speedEl);
+    }
+    
+    // 播放状态控制显隐：播放时隐藏，暂停/缓冲时显示
+    function showSpeed() {
+        if (speedEl) speedEl.style.display = 'flex';
+    }
+    function hideSpeed() {
+        if (speedEl) speedEl.style.display = 'none';
+    }
+    
+    // 初始状态：隐藏（会自动播放，playing 事件会触发显示逻辑）
+    // 但加载阶段还没开始播放，先显示
+    speedEl.style.display = 'flex';
+    
+    video.addEventListener('playing', hideSpeed);
+    video.addEventListener('pause', showSpeed);
+    video.addEventListener('waiting', showSpeed);
+    video.addEventListener('seeking', showSpeed);
+    video.addEventListener('seeked', function() {
+        // seeked 后如果仍然在播放中则隐藏
+        if (!video.paused) {
+            hideSpeed();
+        }
+    });
+    
+    // ===== 网速计算逻辑 =====
+    let lastBufferedBytes = 0;
+    let lastCheckTime = Date.now();
+    let displaySpeed = 0; // 字节每秒
+    
+    // 估算当前视频的比特率（字节每秒）
+    function getEstimatedBytesPerSecond() {
+        const width = video.videoWidth || 1280;
+        const height = video.videoHeight || 720;
+        const pixels = width * height;
+        // 根据分辨率估算比特率（字节每秒）
+        // 1080p: ~5 Mbps = ~625 KB/s
+        // 720p: ~2.5 Mbps = ~312 KB/s
+        // 480p: ~1 Mbps = ~125 KB/s
+        let bitrateBps;
+        if (pixels >= 1920 * 1080) {
+            bitrateBps = 5 * 1024 * 1024 / 8; // 5 Mbps -> 字节/秒
+        } else if (pixels >= 1280 * 720) {
+            bitrateBps = 2.5 * 1024 * 1024 / 8;
+        } else if (pixels >= 854 * 480) {
+            bitrateBps = 1 * 1024 * 1024 / 8;
         } else {
-            // 找不到就放到右侧容器开头
-            controlsRight.insertBefore(speedEl, controlsRight.firstChild);
+            bitrateBps = 0.5 * 1024 * 1024 / 8;
         }
-        
-        // ===== 网速计算逻辑 =====
-        let lastBufferedBytes = 0;
-        let lastCheckTime = Date.now();
-        let displaySpeed = 0; // 字节每秒
-        
-        // 估算当前视频的比特率（字节每秒）
-        function getEstimatedBytesPerSecond() {
-            const width = video.videoWidth || 1280;
-            const height = video.videoHeight || 720;
-            const pixels = width * height;
-            // 根据分辨率估算比特率（字节每秒）
-            // 1080p: ~5 Mbps = ~625 KB/s
-            // 720p: ~2.5 Mbps = ~312 KB/s
-            // 480p: ~1 Mbps = ~125 KB/s
-            let bitrateBps;
-            if (pixels >= 1920 * 1080) {
-                bitrateBps = 5 * 1024 * 1024 / 8; // 5 Mbps -> 字节/秒
-            } else if (pixels >= 1280 * 720) {
-                bitrateBps = 2.5 * 1024 * 1024 / 8;
-            } else if (pixels >= 854 * 480) {
-                bitrateBps = 1 * 1024 * 1024 / 8;
-            } else {
-                bitrateBps = 0.5 * 1024 * 1024 / 8;
-            }
-            return bitrateBps;
+        return bitrateBps;
+    }
+    
+    // 获取已缓冲的总字节估算值
+    function getBufferedBytes() {
+        if (!video.buffered || video.buffered.length === 0) {
+            return 0;
         }
+        const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+        const bufferedStart = video.buffered.start(0);
+        const bufferedSeconds = bufferedEnd - bufferedStart;
+        const bytesPerSecond = getEstimatedBytesPerSecond();
+        return bufferedSeconds * bytesPerSecond;
+    }
+    
+    // 每500ms计算一次网速
+    speedMonitorInterval = setInterval(() => {
+        const now = Date.now();
+        const timeDiff = (now - lastCheckTime) / 1000;
         
-        // 获取已缓冲的总字节估算值
-        function getBufferedBytes() {
-            if (!video.buffered || video.buffered.length === 0) {
-                return 0;
-            }
-            const bufferedEnd = video.buffered.end(video.buffered.length - 1);
-            const bufferedStart = video.buffered.start(0);
-            const bufferedSeconds = bufferedEnd - bufferedStart;
-            const bytesPerSecond = getEstimatedBytesPerSecond();
-            return bufferedSeconds * bytesPerSecond;
-        }
-        
-        // 每500ms计算一次网速
-        speedMonitorInterval = setInterval(() => {
-            const now = Date.now();
-            const timeDiff = (now - lastCheckTime) / 1000;
+        if (timeDiff >= 0.5) {
+            const currentBufferedBytes = getBufferedBytes();
+            const bytesDelta = currentBufferedBytes - lastBufferedBytes;
             
-            if (timeDiff >= 0.5) {
-                const currentBufferedBytes = getBufferedBytes();
-                const bytesDelta = currentBufferedBytes - lastBufferedBytes;
+            if (timeDiff > 0) {
+                const instantSpeed = bytesDelta > 0 ? bytesDelta / timeDiff : 0;
                 
-                if (timeDiff > 0) {
-                    const instantSpeed = bytesDelta > 0 ? bytesDelta / timeDiff : 0;
-                    
-                    if (instantSpeed <= 0) {
-                        // 没有新数据，快速下降
-                        displaySpeed = displaySpeed * 0.4;
+                if (instantSpeed <= 0) {
+                    // 没有新数据，快速下降
+                    displaySpeed = displaySpeed * 0.4;
+                } else {
+                    // 有数据，平滑过渡
+                    if (instantSpeed > displaySpeed) {
+                        displaySpeed = displaySpeed * 0.2 + instantSpeed * 0.8;
                     } else {
-                        // 有数据，平滑过渡
-                        if (instantSpeed > displaySpeed) {
-                            displaySpeed = displaySpeed * 0.2 + instantSpeed * 0.8;
-                        } else {
-                            displaySpeed = displaySpeed * 0.6 + instantSpeed * 0.4;
-                        }
+                        displaySpeed = displaySpeed * 0.6 + instantSpeed * 0.4;
                     }
-                    
-                    if (displaySpeed < 100) displaySpeed = 0;
-                    
-                    updateSpeedDisplay(displaySpeed);
                 }
                 
-                lastBufferedBytes = currentBufferedBytes;
-                lastCheckTime = now;
+                if (displaySpeed < 100) displaySpeed = 0;
+                
+                updateSpeedDisplay(displaySpeed);
             }
-        }, 500);
-        
-        // 视频加载元数据后初始化
-        video.addEventListener('loadedmetadata', function onLoadedMeta() {
-            lastBufferedBytes = getBufferedBytes();
-            lastCheckTime = Date.now();
-            video.removeEventListener('loadedmetadata', onLoadedMeta);
-        });
-    }, 200);
+            
+            lastBufferedBytes = currentBufferedBytes;
+            lastCheckTime = now;
+        }
+    }, 500);
     
-    setTimeout(() => {
-        clearInterval(waitForControls);
-    }, 15000);
+    // 视频加载元数据后初始化
+    video.addEventListener('loadedmetadata', function onLoadedMeta() {
+        lastBufferedBytes = getBufferedBytes();
+        lastCheckTime = Date.now();
+        video.removeEventListener('loadedmetadata', onLoadedMeta);
+    });
 }
 
 // 估算视频比特率（用于原生播放模式）
