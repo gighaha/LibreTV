@@ -396,7 +396,7 @@ input:checked + .slider:before {
     display: none !important;
 }
 
-/* 网速显示样式 - 左上角浮层 */
+/* 网速显示样式 - 右上角浮层 */
 .art-speed-display {
     display: flex;
     align-items: center;
@@ -409,7 +409,7 @@ input:checked + .slider:before {
     color: #fff;
     position: absolute;
     top: 10px;
-    left: 10px;
+    right: 10px;
     z-index: 60;
     background: rgba(0, 0, 0, 0.55);
     border-radius: 4px;
@@ -430,7 +430,7 @@ input:checked + .slider:before {
         min-width: 65px;
         padding: 3px 6px;
         top: 8px;
-        left: 8px;
+        right: 8px;
     }
     
     .art-speed-text {
