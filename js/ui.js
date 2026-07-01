@@ -369,16 +369,16 @@ function formatTimestamp(timestamp) {
 
 // 获取观看历史记录
 function getViewingHistory() {
-    try {
-        const data = localStorage.getItem('viewingHistory');
-        return data ? JSON.parse(data) : [];
-    } catch (e) {
-        console.error('获取观看历史失败:', e);
-        return [];
-    }
+    return window._viewingHistoryCache || [];
 }
 
-// 从云端加载历史并同步到本地
+// 保存观看历史（更新内存缓存 + 同步到云端）
+function setViewingHistory(history) {
+    window._viewingHistoryCache = history;
+    pushHistoryToCloud();
+}
+
+// 从云端加载历史并同步到缓存
 async function syncHistoryFromCloud() {
     if (typeof CloudSync === 'undefined') return;
     const enabled = await CloudSync.isEnabled();
@@ -388,9 +388,9 @@ async function syncHistoryFromCloud() {
         if (cloudHistory && cloudHistory.length > 0) {
             const localHistory = getViewingHistory();
             const merged = mergeHistory(cloudHistory, localHistory);
-            localStorage.setItem('viewingHistory', JSON.stringify(merged));
+            window._viewingHistoryCache = merged;
         } else {
-            // 云端为空，把本地数据推上去
+            // 云端为空，把缓存数据推上去
             const localHistory = getViewingHistory();
             if (localHistory.length > 0) {
                 CloudSync.sync(localHistory);
@@ -548,8 +548,8 @@ function deleteHistoryItem(encodedUrl) {
         // 过滤掉要删除的项
         const newHistory = history.filter(item => item.url !== url);
 
-        // 保存回localStorage
-        localStorage.setItem('viewingHistory', JSON.stringify(newHistory));
+        // 保存到内存缓存并同步云端
+        setViewingHistory(newHistory);
 
         // 同步删除云端记录
         if (itemToDelete && itemToDelete.showIdentifier && typeof CloudSync !== 'undefined') {
@@ -578,9 +578,8 @@ async function playFromHistory(url, title, episodeIndex, playbackPosition = 0) {
         let syncSuccessful = false;
 
         // 检查viewingHistory，查找匹配的项
-        const historyRaw = localStorage.getItem('viewingHistory');
-        if (historyRaw) {
-            const history = JSON.parse(historyRaw);
+        const history = getViewingHistory();
+        if (history.length > 0) {
             historyItem = history.find(item => item.url === url);
             // console.log('[playFromHistory in ui.js] Found historyItem:', historyItem ? JSON.parse(JSON.stringify(historyItem)) : null); // Log 2 (stringify/parse for deep copy)
             if (historyItem) {
@@ -636,15 +635,15 @@ async function playFromHistory(url, title, episodeIndex, playbackPosition = 0) {
                     }
 
                     // console.log(`成功获取 "${title}" 最新剧集列表:`, episodesList.length, "集");
-                    // Update the history item in localStorage with the fresh episodes
+                    // Update the history item in memory cache with the fresh episodes
                     if (historyItem) {
                         historyItem.episodes = [...episodesList]; // Deep copy
                         historyItem.lastSyncTime = Date.now(); // Add sync timestamp
-                        const history = JSON.parse(historyRaw); // Re-parse to ensure we have the latest version
-                        const idx = history.findIndex(item => item.url === url);
+                        const currentHistory = getViewingHistory();
+                        const idx = currentHistory.findIndex(item => item.url === url);
                         if (idx !== -1) {
-                            history[idx] = { ...history[idx], ...historyItem }; // Merge, ensuring other properties are kept
-                            localStorage.setItem('viewingHistory', JSON.stringify(history));
+                            currentHistory[idx] = { ...currentHistory[idx], ...historyItem }; // Merge, ensuring other properties are kept
+                            setViewingHistory(currentHistory);
                             // console.log("观看历史中的剧集列表已更新。");
                         }
                     }
@@ -825,11 +824,8 @@ function addToViewingHistory(videoInfo) {
             history.splice(maxHistoryItems);
         }
 
-        // 保存到本地存储
-        localStorage.setItem('viewingHistory', JSON.stringify(history));
-
-        // 异步推送到云端
-        pushHistoryToCloud();
+        // 保存到内存缓存并同步云端
+        setViewingHistory(history);
     } catch (e) {
         // console.error('保存观看历史失败:', e);
     }
@@ -838,7 +834,7 @@ function addToViewingHistory(videoInfo) {
 // 清空观看历史
 function clearViewingHistory() {
     try {
-        localStorage.removeItem('viewingHistory');
+        window._viewingHistoryCache = [];
         // 同步清空云端
         if (typeof CloudSync !== 'undefined') {
             CloudSync.isEnabled().then(enabled => {
