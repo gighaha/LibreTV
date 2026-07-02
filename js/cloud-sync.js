@@ -82,6 +82,21 @@ const CloudSync = {
     debouncedSync(history) {
         if (this._syncTimer) clearTimeout(this._syncTimer);
         this._syncTimer = setTimeout(() => this.sync(history), 1000);
+    },
+
+    async syncItem(item) {
+        if (!(await this.isEnabled()) || !item) return false;
+        try {
+            await fetch(this.API_BASE + '/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ history: [item] })
+            });
+            return true;
+        } catch (e) {
+            console.warn('[CloudSync] syncItem failed:', e.message);
+            return false;
+        }
     }
 };
 

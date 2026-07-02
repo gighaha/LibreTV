@@ -372,10 +372,9 @@ function getViewingHistory() {
     return window._viewingHistoryCache || [];
 }
 
-// 保存观看历史（更新内存缓存 + 同步到云端）
+// 保存观看历史（更新内存缓存）
 function setViewingHistory(history) {
     window._viewingHistoryCache = history;
-    pushHistoryToCloud();
 }
 
 // 从云端加载历史并同步到缓存
@@ -418,17 +417,6 @@ function mergeHistory(cloud, local) {
     const merged = Array.from(map.values());
     merged.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
     return merged.slice(0, 50);
-}
-
-// 异步推送本地历史到云端
-function pushHistoryToCloud() {
-    if (typeof CloudSync === 'undefined') return;
-    // 先检查是否启用，不阻塞
-    CloudSync.isEnabled().then(enabled => {
-        if (!enabled) return;
-        const history = getViewingHistory();
-        CloudSync.debouncedSync(history);
-    });
 }
 
 // 加载观看历史并渲染
@@ -644,6 +632,10 @@ async function playFromHistory(url, title, episodeIndex, playbackPosition = 0) {
                         if (idx !== -1) {
                             currentHistory[idx] = { ...currentHistory[idx], ...historyItem }; // Merge, ensuring other properties are kept
                             setViewingHistory(currentHistory);
+                            // 只同步更新后的这条记录到云端
+                            if (typeof CloudSync !== 'undefined') {
+                                CloudSync.syncItem(currentHistory[idx]);
+                            }
                             // console.log("观看历史中的剧集列表已更新。");
                         }
                     }
@@ -824,8 +816,13 @@ function addToViewingHistory(videoInfo) {
             history.splice(maxHistoryItems);
         }
 
-        // 保存到内存缓存并同步云端
+        // 保存到内存缓存
         setViewingHistory(history);
+
+        // 只同步当前视频记录到云端
+        if (typeof CloudSync !== 'undefined') {
+            CloudSync.syncItem(videoInfo);
+        }
     } catch (e) {
         // console.error('保存观看历史失败:', e);
     }

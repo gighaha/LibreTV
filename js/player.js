@@ -1335,8 +1335,8 @@ function saveToHistory() {
         sourceCode: sourceCode,
         showIdentifier: show_identifier_for_video_info, // Identifier for the show/series
         timestamp: Date.now(),
-        playbackPosition: currentPosition,
-        duration: videoDuration,
+        playbackPosition: currentPosition > 0 && isFinite(currentPosition) ? currentPosition : 0,
+        duration: videoDuration > 0 && isFinite(videoDuration) ? videoDuration : 0,
         episodes: currentEpisodes && currentEpisodes.length > 0 ? [...currentEpisodes] : []
     };
     
@@ -1390,10 +1390,10 @@ function saveToHistory() {
 
         window._viewingHistoryCache = history;
 
-        // 异步推送到云端
+        // 只同步当前视频记录到云端（不覆盖其他设备的历史）
         if (typeof CloudSync !== 'undefined') {
             CloudSync.isEnabled().then(enabled => {
-                if (enabled) CloudSync.debouncedSync([...history]);
+                if (enabled) CloudSync.syncItem(videoInfo);
             });
         }
     } catch (e) {
@@ -1472,7 +1472,7 @@ function saveCurrentProgress() {
                 history[idx].timestamp = Date.now();
                 window._viewingHistoryCache = history;
 
-                // 同步播放进度到云端
+                // 只更新进度字段到云端（不覆盖其他设备的历史记录）
                 if (typeof CloudSync !== 'undefined' && history[idx].showIdentifier) {
                     CloudSync.isEnabled().then(enabled => {
                         if (enabled) CloudSync.updateProgress(history[idx].showIdentifier, currentTime, duration);
