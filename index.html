@@ -192,7 +192,7 @@
                         <h1 class="text-5xl font-bold gradient-text">LibreTV</h1>
                     </a>
                 </div>
-                <p class="text-gray-400 mb-8" id="buildTimeHeader">{{BUILD_TIME}}</p>
+                <p class="text-gray-400 mb-8" id="buildTimeHeader">自由观影，畅享精彩</p>
             </header>
             
 
@@ -300,7 +300,7 @@
                         </svg>
                         <span class="gradient-text font-bold">LibreTV</span>
                     </div>
-                    <p class="text-gray-500 text-sm mt-2 text-center md:text-left">© 2025 LibreTV | <span id="buildTimeFooter">{{BUILD_TIME}}</span></p>
+                    <p class="text-gray-500 text-sm mt-2 text-center md:text-left">© 2025 LibreTV | <span id="buildTimeFooter">自由观影，畅享精彩</span></p>
                 </div>
                 
                 <div class="text-center md:text-right">
@@ -445,27 +445,17 @@
 
     <!-- 添加弹窗和URL搜索参数处理脚本 -->
     <script src="js/index-page.js"></script>
-    <!-- 构建时间回退：如果构建命令未替换占位符，则从 BUILD_TIME 文件加载 -->
     <script>
-    (function() {
-        var needFetch = false;
-        document.querySelectorAll('[id^="buildTime"]').forEach(function(el) {
-            if (el.textContent.indexOf('{{BUILD_TIME}}') !== -1) needFetch = true;
-        });
-        if (!needFetch) return;
-        fetch('/BUILD_TIME')
-            .then(function(r) { return r.ok ? r.text() : null; })
-            .then(function(t) {
-                if (!t) return;
-                t = t.trim();
-                document.querySelectorAll('[id^="buildTime"]').forEach(function(el) {
-                    if (el.textContent.indexOf('{{BUILD_TIME}}') !== -1) {
-                        el.textContent = t;
-                    }
-                });
-            })
-            .catch(function() {});
-    })();
+    fetch('/BUILD_TIME')
+        .then(function(r) { return r.ok ? r.text() : null; })
+        .then(function(t) {
+            if (!t) return;
+            t = t.trim();
+            document.querySelectorAll('#buildTimeHeader,#buildTimeFooter').forEach(function(el) {
+                el.textContent = t;
+            });
+        })
+        .catch(function() {});
     </script>
 </body>
 </html>
