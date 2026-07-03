@@ -100,11 +100,8 @@ Artplayer.FULLSCREEN_WEB_IN_BODY = true;
 
 // 页面加载
 document.addEventListener('DOMContentLoaded', function () {
-    // 锁定body滚动，防止iOS滑动穿透到下层页面
-    document.body.style.overflow = 'hidden';
-    document.body.style.position = 'fixed';
-    document.body.style.width = '100%';
-    document.body.style.height = '100%';
+    // 保持页面可滚动，仅在 iOS 全屏时锁定滚动
+    // 通过 CSS 控制 overflow，不在此处覆盖
 
     // 先检查用户是否已通过密码验证
     if (!isPasswordVerified()) {
