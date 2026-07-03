@@ -835,6 +835,29 @@ function initPlayer(videoUrl) {
             document.removeEventListener('mouseout', handleMouseOut);
             // 退出全屏时清理计时器
             clearTimeout(hideTimer);
+
+            // 修复 iOS 反复开关全屏导致布局越来越小的 bug
+            // ArtPlayer fullscreenWeb 模式会修改容器内联样式，退出时可能未完全清理
+            const playerContainer = document.getElementById('playerContainer');
+            if (playerContainer) {
+                playerContainer.style.position = '';
+                playerContainer.style.top = '';
+                playerContainer.style.left = '';
+                playerContainer.style.width = '';
+                playerContainer.style.height = '';
+                playerContainer.style.zIndex = '';
+                playerContainer.style.transform = '';
+            }
+            const playerEl = document.getElementById('player');
+            if (playerEl) {
+                playerEl.style.transform = '';
+                playerEl.style.width = '';
+                playerEl.style.height = '';
+            }
+            document.body.style.overflow = '';
+            document.body.style.position = '';
+            document.body.style.width = '';
+            document.body.style.height = '';
         }
 
         if (!isWeb) {
