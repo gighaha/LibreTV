@@ -60,6 +60,8 @@ async function renderPage(filePath, password) {
   } else {
     content = content.replace('{{PASSWORD}}', '');
   }
+  const buildTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+  content = content.replace('{{BUILD_TIME}}', buildTime);
   return content;
 }
 
