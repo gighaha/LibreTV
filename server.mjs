@@ -60,7 +60,14 @@ async function renderPage(filePath, password) {
   } else {
     content = content.replace('{{PASSWORD}}', '');
   }
-  const buildTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+  // 优先读取 Cloudflare Pages 构建时生成的 BUILD_TIME 文件
+  let buildTime;
+  const buildTimeFile = path.join(__dirname, 'BUILD_TIME');
+  if (fs.existsSync(buildTimeFile)) {
+    buildTime = fs.readFileSync(buildTimeFile, 'utf8').trim();
+  } else {
+    buildTime = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+  }
   content = content.replace('{{BUILD_TIME}}', buildTime);
   return content;
 }
