@@ -522,7 +522,7 @@ function formatPlaybackTime(seconds) {
 }
 
 // 删除单个历史记录项
-function deleteHistoryItem(encodedUrl) {
+async function deleteHistoryItem(encodedUrl) {
     try {
         // 解码URL
         const url = decodeURIComponent(encodedUrl);
@@ -536,18 +536,19 @@ function deleteHistoryItem(encodedUrl) {
         // 过滤掉要删除的项
         const newHistory = history.filter(item => item.url !== url);
 
-        // 保存到内存缓存并同步云端
+        // 保存到内存缓存
         setViewingHistory(newHistory);
 
-        // 同步删除云端记录
+        // 先等待云端删除完成，再重新加载，避免云端数据覆盖本地删除
         if (itemToDelete && itemToDelete.showIdentifier && typeof CloudSync !== 'undefined') {
-            CloudSync.isEnabled().then(enabled => {
-                if (enabled) CloudSync.deleteItem(itemToDelete.showIdentifier);
-            });
+            const enabled = await CloudSync.isEnabled();
+            if (enabled) {
+                await CloudSync.deleteItem(itemToDelete.showIdentifier);
+            }
         }
 
         // 重新加载历史记录显示
-        loadViewingHistory();
+        await loadViewingHistory();
 
         // 显示成功提示
         showToast('已删除该记录', 'success');
