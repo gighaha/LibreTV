@@ -659,7 +659,7 @@ function initPlayer(videoUrl) {
         isLive: false,
         muted: false,
         autoplay: true,
-        pip: !isIOS, // iOS 原生 PiP 与 ArtPlayer 冲突，关闭 ArtPlayer 的 PiP 按钮
+        pip: true,
         autoSize: false,
         autoMini: true,
         screenshot: true,
@@ -879,6 +879,19 @@ function initPlayer(videoUrl) {
         // 如果是 WebKit 浏览器（使用原生 HLS 播放），启动原生模式的网速监测
         if (isWebkit && !currentHls) {
             initSpeedMonitor(null, art.video);
+        }
+
+        // 修复 iOS PiP 并发请求报错：包装 requestPictureInPicture 防止重复调用
+        if (art.video && art.video.requestPictureInPicture) {
+            let pipPending = false;
+            const originalRequestPiP = art.video.requestPictureInPicture.bind(art.video);
+            art.video.requestPictureInPicture = function () {
+                if (pipPending) return Promise.reject(new DOMException('PiP request already in progress'));
+                pipPending = true;
+                return originalRequestPiP().finally(() => {
+                    pipPending = false;
+                });
+            };
         }
     });
 
