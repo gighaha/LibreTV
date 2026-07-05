@@ -142,6 +142,9 @@ div.player-loading-text {
     width: 100%;
     max-width: 1000px;
     margin: 0 auto;
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
 }
 
 #player {
