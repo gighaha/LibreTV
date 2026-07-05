@@ -96,6 +96,7 @@ let lastLoadedBytes = 0; // 上次记录的已加载字节数
 let lastSpeedCheckTime = 0; // 上次网速检测时间
 window._viewingHistoryCache = []; // 内存缓存，替代 localStorage 存储观看历史
 const isWebkit = (typeof window.webkitConvertPointFromNodeToPage === 'function')
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 Artplayer.FULLSCREEN_WEB_IN_BODY = true;
 
 // 页面加载
@@ -658,7 +659,7 @@ function initPlayer(videoUrl) {
         isLive: false,
         muted: false,
         autoplay: true,
-        pip: true,
+        pip: !isIOS, // iOS 原生 PiP 与 ArtPlayer 冲突，关闭 ArtPlayer 的 PiP 按钮
         autoSize: false,
         autoMini: true,
         screenshot: true,
