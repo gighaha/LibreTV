@@ -94,8 +94,6 @@ let currentVideoUrl = ''; // 记录当前实际的视频URL
 let speedMonitorInterval = null; // 网速监测计时器
 let lastLoadedBytes = 0; // 上次记录的已加载字节数
 let lastSpeedCheckTime = 0; // 上次网速检测时间
-let hideTimer = null; // 控制栏自动隐藏计时器（模块作用域，供旋转满屏使用）
-let resetControlsHideTimer = null; // resetHideTimer 函数引用，供旋转满屏重置计时器
 window._viewingHistoryCache = []; // 内存缓存，替代 localStorage 存储观看历史
 const isWebkit = (typeof window.webkitConvertPointFromNodeToPage === 'function')
 Artplayer.FULLSCREEN_WEB_IN_BODY = true;
@@ -617,8 +615,7 @@ function initPlayer(videoUrl) {
         art.destroy();
         art = null;
     }
-    resetControlsHideTimer = null;
-    
+
     // 销毁网速监测
     destroySpeedMonitor();
 
@@ -800,42 +797,10 @@ function initPlayer(videoUrl) {
         }
     });
 
-    // artplayer 没有 'fullscreenWeb:enter', 'fullscreenWeb:exit' 等事件
-    // 所以原控制栏隐藏代码并没有起作用
-    // 实际起作用的是 artplayer 默认行为，它支持自动隐藏工具栏
-    // 但有一个 bug： 在副屏全屏时，鼠标移出副屏后不会自动隐藏工具栏
-    // 下面进一并重构和修复：
-
-    // 隐藏控制栏
-    function hideControls() {
-        if (art && art.controls) {
-            art.controls.show = false;
-        }
-    }
-
-    // 重置计时器，与 artplayer 保持一致
-    function resetHideTimer() {
-        clearTimeout(hideTimer);
-        hideTimer = setTimeout(() => {
-            hideControls();
-        }, Artplayer.CONTROL_HIDE_TIME);
-    }
-
-    // 将 resetHideTimer 暴露到模块作用域，供旋转满屏使用
-    resetControlsHideTimer = resetHideTimer;
-
-    // 处理鼠标离开浏览器窗口
-    function handleMouseOut(e) {
-        if (e && !e.relatedTarget) {
-            resetHideTimer();
-        }
-    }
-
-    // 全屏状态切换时注册/移除 mouseout 事件，监听鼠标移出屏幕事件
-    // 从而对播放器状态栏进行隐藏倒计时
+    // 全屏状态切换：仅处理滚动锁定与样式清理，控制栏显隐完全交给 ArtPlayer 默认行为
+    // （与网页播放器非全屏状态一致，不做任何额外处理）
     function handleFullScreen(isFullScreen, isWeb) {
         if (isFullScreen) {
-            document.addEventListener('mouseout', handleMouseOut);
             // 满屏时禁止页面滚动（body + html + playerContainer）
             document.documentElement.style.overflow = 'hidden';
             document.body.style.overflow = 'hidden';
@@ -846,10 +811,6 @@ function initPlayer(videoUrl) {
                 pc.style.touchAction = 'none';
             }
         } else {
-            document.removeEventListener('mouseout', handleMouseOut);
-            // 退出全屏时清理计时器
-            clearTimeout(hideTimer);
-
             // 修复 iOS 反复开关全屏导致布局越来越小的 bug
             // ArtPlayer fullscreenWeb 模式会修改容器内联样式，退出时可能未完全清理
             const playerContainer = document.getElementById('playerContainer');
@@ -892,10 +853,8 @@ function initPlayer(videoUrl) {
         }
     }
 
-    // 播放器加载完成后初始隐藏工具栏
+    // 播放器加载完成
     art.on('ready', () => {
-        hideControls();
-
         // 拦截满屏按钮，改为触发旋转竖屏满屏
         setupRotatedFullscreenButton();
         
@@ -1698,9 +1657,6 @@ function startKeepControlsVisible() {
     stopKeepControlsVisible();
     if (art && art.controls) {
         art.controls.show = true;
-    }
-    if (resetControlsHideTimer) {
-        resetControlsHideTimer();
     }
     rotatedKeepControlsTimer = setInterval(function () {
         if (art && art.controls) {
