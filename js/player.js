@@ -1679,6 +1679,7 @@ function toggleControlsLock() {
 // 呈纵向竖屏满屏布局；再次单击该按钮，返回之前的状态。
 let isRotatedFullscreen = false;
 let rotatedResizeHandler = null;
+let rotatedKeepControlsTimer = null;
 
 // 用 JS 动态设置容器尺寸（而非 CSS 100vh/100vw），
 // 规避 iOS Safari 的 100vh 包含地址栏、导致旋转后内容被网址栏遮挡的问题。
@@ -1688,6 +1689,33 @@ function applyRotatedSize() {
     // 旋转后宽=视口高，高=视口宽，宽高互换
     container.style.width = window.innerHeight + 'px';
     container.style.height = window.innerWidth + 'px';
+}
+
+// 旋转满屏期间每 2 秒主动刷新一次 art.controls.show = true。
+// ArtPlayer 内部的自动隐藏计时器（CONTROL_HIDE_TIME=3000ms）在 set show(true)
+// 时会通过 control 事件重置 this.timer。这里以 2 秒间隔（小于 3 秒阈值）主动刷新，
+// 确保计时器在到期前被重置，控制栏不会因自动隐藏而被收回。
+// 相比被动检查（检测到隐藏后再显示），主动刷新不会与用户触摸 toggle 产生振荡。
+function startKeepControlsVisible() {
+    stopKeepControlsVisible();
+    if (art && art.controls) {
+        art.controls.show = true;
+    }
+    if (resetControlsHideTimer) {
+        resetControlsHideTimer();
+    }
+    rotatedKeepControlsTimer = setInterval(function () {
+        if (art && art.controls) {
+            art.controls.show = true;
+        }
+    }, 2000);
+}
+
+function stopKeepControlsVisible() {
+    if (rotatedKeepControlsTimer) {
+        clearInterval(rotatedKeepControlsTimer);
+        rotatedKeepControlsTimer = null;
+    }
 }
 
 function toggleRotatedFullscreen() {
@@ -1719,16 +1747,10 @@ function toggleRotatedFullscreen() {
         };
         window.addEventListener('resize', rotatedResizeHandler);
         window.addEventListener('orientationchange', rotatedResizeHandler);
-        // 显示控制栏并重置自定义计时器。
-        // CSS 已通过 .player-rotated-fullscreen .art-bottom 强制 opacity:1，
-        // 确保控制栏在旋转期间始终可见，不被 ArtPlayer 内部自动隐藏机制收回。
-        if (art && art.controls) {
-            art.controls.show = true;
-        }
-        if (resetControlsHideTimer) {
-            resetControlsHideTimer();
-        }
+        // 旋转完成后保持控制栏可见
+        startKeepControlsVisible();
     } else {
+        stopKeepControlsVisible();
         container.classList.remove('player-rotated-fullscreen');
         container.style.width = '';
         container.style.height = '';

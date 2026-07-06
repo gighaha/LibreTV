@@ -353,17 +353,6 @@ input:checked + .slider:before {
     aspect-ratio: auto !important;
 }
 
-/* 旋转满屏期间强制控制栏始终可见。
-   ArtPlayer 通过 art-control-show 类（opacity: 1）控制控制栏显隐，
-   旋转时 CSS transform 布局变化可能导致内部计时器未正确更新，
-   使得控制栏显示后立即被收回。这里用 !important 直接覆盖，
-   避免 JS 轮询与用户触摸 toggle 产生振荡冲突。 */
-#playerContainer.player-rotated-fullscreen .art-bottom {
-    opacity: 1 !important;
-    pointer-events: auto !important;
-    visibility: visible !important;
-}
-
 /* 资源信息卡片区 */
 #resourceInfoBarContainer {
     align-items: center;
