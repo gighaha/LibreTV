@@ -662,10 +662,10 @@ function initPlayer(videoUrl) {
         autoSize: false,
         autoMini: false,
         screenshot: true,
-        setting: true,
+        setting: false,
         loop: false,
         flip: false,
-        playbackRate: true,
+        playbackRate: false,
         aspectRatio: false,
         fullscreen: true,
         fullscreenWeb: true,
@@ -895,6 +895,30 @@ function initPlayer(videoUrl) {
         if (isWebkit && !currentHls) {
             initSpeedMonitor(null, art.video);
         }
+
+        // 添加播放速度控件到控制栏（替代设置按钮）
+        const rates = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+        art.controls.add({
+            name: 'playback-rate',
+            position: 'right',
+            html: '1.0x',
+            style: {
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                padding: '0 4px',
+            },
+            tooltip: '播放速度',
+            click: function () {
+                const current = art.playbackRate;
+                const idx = rates.indexOf(current);
+                const next = rates[idx >= 0 ? (idx + 1) % rates.length : 0];
+                art.playbackRate = next;
+                art.controls['playback-rate'].html = next.toFixed(1).replace(/\.0$/, '') + 'x';
+                art.notice.show = next.toFixed(1).replace(/\.0$/, '') + 'x';
+            }
+        });
     });
 
     // 全屏 Web 模式处理
