@@ -1679,6 +1679,7 @@ function toggleControlsLock() {
 // 呈纵向竖屏满屏布局；再次单击该按钮，返回之前的状态。
 let isRotatedFullscreen = false;
 let rotatedResizeHandler = null;
+let rotatedKeepControlsTimer = null;
 
 // 用 JS 动态设置容器尺寸（而非 CSS 100vh/100vw），
 // 规避 iOS Safari 的 100vh 包含地址栏、导致旋转后内容被网址栏遮挡的问题。
@@ -1688,6 +1689,32 @@ function applyRotatedSize() {
     // 旋转后宽=视口高，高=视口宽，宽高互换
     container.style.width = window.innerHeight + 'px';
     container.style.height = window.innerWidth + 'px';
+}
+
+// 旋转满屏期间持续保持控制栏可见。
+// ArtPlayer 内部通过 video:timeupdate 事件触发自动隐藏（CONTROL_HIDE_TIME=3000ms），
+// 旋转时 CSS transform 的布局变化可能导致内部 this.timer 未及时更新，使得控制栏
+// 显示后立即被收回。这里用轮询方式兜底，确保控制栏在旋转期间始终可见。
+function startKeepControlsVisible() {
+    stopKeepControlsVisible();
+    if (art && art.controls) {
+        art.controls.show = true;
+    }
+    if (resetControlsHideTimer) {
+        resetControlsHideTimer();
+    }
+    rotatedKeepControlsTimer = setInterval(function () {
+        if (art && art.controls && !art.controls.show) {
+            art.controls.show = true;
+        }
+    }, 500);
+}
+
+function stopKeepControlsVisible() {
+    if (rotatedKeepControlsTimer) {
+        clearInterval(rotatedKeepControlsTimer);
+        rotatedKeepControlsTimer = null;
+    }
 }
 
 function toggleRotatedFullscreen() {
@@ -1719,14 +1746,10 @@ function toggleRotatedFullscreen() {
         };
         window.addEventListener('resize', rotatedResizeHandler);
         window.addEventListener('orientationchange', rotatedResizeHandler);
-        // 旋转完成后显示控制栏并重置计时器，避免 iOS 上显示一下子就被收回
-        if (art && art.controls) {
-            art.controls.show = true;
-        }
-        if (resetControlsHideTimer) {
-            resetControlsHideTimer();
-        }
+        // 旋转完成后保持控制栏可见
+        startKeepControlsVisible();
     } else {
+        stopKeepControlsVisible();
         container.classList.remove('player-rotated-fullscreen');
         container.style.width = '';
         container.style.height = '';
