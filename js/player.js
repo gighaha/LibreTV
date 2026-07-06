@@ -801,9 +801,9 @@ function initPlayer(videoUrl) {
     // （与网页播放器非全屏状态一致，不做任何额外处理）
     function handleFullScreen(isFullScreen, isWeb) {
         if (isFullScreen) {
-            // 满屏时禁止页面滚动（body + html + playerContainer）
-            document.documentElement.style.overflow = 'hidden';
-            document.body.style.overflow = 'hidden';
+            // 满屏时禁止页面滚动
+            // 注：ArtPlayer fullscreenWeb 下播放器是 position:fixed，
+            // 不需要在 body/html 上设 overflow:hidden，仅锁定 playerContainer 即可
             const pc = document.getElementById('playerContainer');
             if (pc) {
                 pc.style.overflow = 'hidden';
@@ -866,12 +866,25 @@ function initPlayer(videoUrl) {
     // 全屏 Web 模式处理
     art.on('fullscreenWeb', function (isFullScreen) {
         handleFullScreen(isFullScreen, true);
-        // 进入网页全屏时强制刷新控制栏计时器
-        // 点击的是按钮而非 video，不会触发 ArtPlayer 的 click → 不刷新 control.timer，
-        // 导致 video:timeupdate 检测到超时立即隐藏（"瞬间收回"）。
-        // 直接 emit("control") 刷新 timer，绕过 setter 取值不变时被跳过的逻辑。
         if (isFullScreen && art.controls) {
-            art.emit('control', true);
+            // 进入网页全屏时强制刷新控制栏显示状态
+            // 只 emit("control") 可能不够可靠，这里直接重置 timer、
+            // 添加 art-hover 类，并在一个微任务延迟后再次确保控制栏显示，
+            // 以覆盖 fullscreenWeb setter 末尾 emit("resize") 可能触发的
+            // 任何副作用
+            art.controls.timer = Date.now();
+            var player = document.getElementById('player');
+            if (player) {
+                player.classList.add('art-hover');
+                player.classList.remove('art-hide-cursor');
+            }
+            setTimeout(function () {
+                art.controls.timer = Date.now();
+                if (player) {
+                    player.classList.add('art-hover');
+                    player.classList.remove('art-hide-cursor');
+                }
+            }, 50);
         }
     });
 
