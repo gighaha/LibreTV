@@ -322,24 +322,34 @@ input:checked + .slider:before {
    内部视频、控制栏、遮罩等所有元素随容器同步旋转，无局部错位。 */
 #playerContainer.player-rotated-fullscreen {
     position: fixed !important;
-    top: 0;
-    left: 0;
+    top: 0 !important;
+    left: 0 !important;
     max-width: none !important;
     margin: 0 !important;
     /* 宽高互换：旋转后宽=视口高，高=视口宽，从而铺满整屏 */
-    width: 100vh;
-    height: 100vw;
+    width: 100vh !important;
+    height: 100vw !important;
     /* 绕左上角旋转 90°，再平移使容器铺满视口 */
-    transform: rotate(90deg) translateY(-100vw);
-    transform-origin: 0 0;
+    transform: rotate(90deg) translateY(-100vw) !important;
+    transform-origin: 0 0 !important;
     z-index: 9999;
     background: #000;
     overflow: hidden;
 }
 
-#playerContainer.player-rotated-fullscreen #player {
+/* 关键：让 .relative 包裹层与 #player、播放器、video 全部填满容器，
+   否则 #player 只占容器顶部一条，旋转后会挤到屏幕右侧。 */
+#playerContainer.player-rotated-fullscreen > .relative {
     width: 100% !important;
     height: 100% !important;
+}
+
+#playerContainer.player-rotated-fullscreen #player,
+#playerContainer.player-rotated-fullscreen .art-video-player,
+#playerContainer.player-rotated-fullscreen .art-video-player video {
+    width: 100% !important;
+    height: 100% !important;
+    max-height: none !important;
     aspect-ratio: auto !important;
 }
 
