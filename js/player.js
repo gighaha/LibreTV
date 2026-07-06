@@ -833,9 +833,6 @@ function initPlayer(videoUrl) {
             document.addEventListener('mouseout', handleMouseOut);
             // 满屏时禁止页面滚动
             document.body.style.overflow = 'hidden';
-            document.body.style.position = 'fixed';
-            document.body.style.width = '100%';
-            document.body.style.height = '100%';
         } else {
             document.removeEventListener('mouseout', handleMouseOut);
             // 退出全屏时清理计时器
