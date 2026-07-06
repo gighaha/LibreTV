@@ -96,8 +96,10 @@ let lastLoadedBytes = 0; // 上次记录的已加载字节数
 let lastSpeedCheckTime = 0; // 上次网速检测时间
 let hideTimer = null; // 控制栏自动隐藏计时器（模块作用域，供旋转满屏使用）
 let resetControlsHideTimer = null; // resetHideTimer 函数引用，供旋转满屏重置计时器
-let controlsLastShownTime = 0; // 控制栏上次显示的时间戳（用于防止 iOS 上瞬间收回）
-const CONTROL_HIDE_DELAY = 2000; // 控制栏无操作 2 秒后自动收回
+// iOS 控制栏保护：ArtPlayer 无 control 事件，用轮询检测防止全屏时控制栏被瞬间收回
+let iosControlsProtectInterval = null;
+let iosControlsLastInteract = 0;
+let iosControlsInteractHandler = null;
 window._viewingHistoryCache = []; // 内存缓存，替代 localStorage 存储观看历史
 const isWebkit = (typeof window.webkitConvertPointFromNodeToPage === 'function')
 Artplayer.FULLSCREEN_WEB_IN_BODY = true;
@@ -815,36 +817,16 @@ function initPlayer(videoUrl) {
         }
     }
 
-    // 重置计时器，2 秒无操作后自动收回控制栏
+    // 重置计时器，与 artplayer 保持一致
     function resetHideTimer() {
         clearTimeout(hideTimer);
         hideTimer = setTimeout(() => {
             hideControls();
-        }, CONTROL_HIDE_DELAY);
+        }, Artplayer.CONTROL_HIDE_TIME);
     }
 
     // 将 resetHideTimer 暴露到模块作用域，供旋转满屏使用
     resetControlsHideTimer = resetHideTimer;
-
-    // 监听 ArtPlayer 控制栏显示/隐藏事件，修复 iOS 上控制栏激活后瞬间收回的 bug
-    // iOS 地址栏显隐会触发 resize 事件，ArtPlayer 内部响应 resize 时可能短暂隐藏控制栏，
-    // 导致控制栏刚激活就被收回。这里通过守卫防止 2 秒内被非用户操作隐藏。
-    art.on('art:control', function (state) {
-        if (state) {
-            // 控制栏被激活显示，记录时间并启动 2 秒计时器
-            controlsLastShownTime = Date.now();
-            resetHideTimer();
-        } else {
-            // 控制栏被隐藏，检查是否在 2 秒保护期内被意外隐藏（如 resize 导致）
-            var elapsed = Date.now() - controlsLastShownTime;
-            if (elapsed < CONTROL_HIDE_DELAY && controlsLastShownTime > 0) {
-                // 在保护期内被隐藏，立即重新显示控制栏，防止 iOS resize 冲突
-                if (art && art.controls) {
-                    art.controls.show = true;
-                }
-            }
-        }
-    });
 
     // 处理鼠标离开浏览器窗口
     function handleMouseOut(e) {
@@ -867,10 +849,14 @@ function initPlayer(videoUrl) {
                 pc.style.overflow = 'hidden';
                 pc.style.touchAction = 'none';
             }
+            // iOS 上控制栏会被瞬间收回，启动保护机制
+            startIOSControlsProtection();
         } else {
             document.removeEventListener('mouseout', handleMouseOut);
             // 退出全屏时清理计时器
             clearTimeout(hideTimer);
+            // 停止 iOS 控制栏保护
+            stopIOSControlsProtection();
 
             // 修复 iOS 反复开关全屏导致布局越来越小的 bug
             // ArtPlayer fullscreenWeb 模式会修改容器内联样式，退出时可能未完全清理
@@ -924,23 +910,6 @@ function initPlayer(videoUrl) {
         // 如果是 WebKit 浏览器（使用原生 HLS 播放），启动原生模式的网速监测
         if (isWebkit && !currentHls) {
             initSpeedMonitor(null, art.video);
-        }
-
-        // 在视频元素上添加触摸/点击事件，重置控制栏隐藏计时器
-        // 修复 iOS 上用户触摸控制栏区域后计时器未被重置的问题
-        if (art.video) {
-            const resetTimerOnInteract = function () {
-                if (art && art.controls && art.controls.show) {
-                    resetHideTimer();
-                }
-            };
-            art.video.addEventListener('touchstart', resetTimerOnInteract, { passive: true });
-            art.video.addEventListener('click', resetTimerOnInteract);
-            // 在控制栏容器上也监听触摸事件
-            const playerEl = document.getElementById('player');
-            if (playerEl) {
-                playerEl.addEventListener('touchstart', resetTimerOnInteract, { passive: true });
-            }
         }
     });
 
@@ -1719,6 +1688,55 @@ function toggleControlsLock() {
 let isRotatedFullscreen = false;
 let rotatedKeepControlsTimer = null;
 
+// ===== iOS 控制栏保护 =====
+// ArtPlayer 没有 control 显隐事件，iOS 全屏时控制栏会被瞬间收回。
+// 用轮询检测：用户交互后 2 秒内如果控制栏被意外隐藏，立即恢复显示。
+function isIOSDevice() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function startIOSControlsProtection() {
+    if (!isIOSDevice()) return; // 电脑端不受影响
+    stopIOSControlsProtection();
+    iosControlsLastInteract = Date.now();
+
+    // 监听用户触摸/点击，更新保护期
+    iosControlsInteractHandler = function () {
+        iosControlsLastInteract = Date.now();
+    };
+    var playerEl = document.getElementById('player');
+    if (playerEl) {
+        playerEl.addEventListener('touchstart', iosControlsInteractHandler, { passive: true });
+        playerEl.addEventListener('click', iosControlsInteractHandler);
+    }
+
+    // 每 200ms 轮询：2 秒保护期内如果控制栏被隐藏则恢复
+    iosControlsProtectInterval = setInterval(function () {
+        if (!art || !art.controls) return;
+        if (Date.now() - iosControlsLastInteract < 2000) {
+            if (!art.controls.show) {
+                art.controls.show = true;
+            }
+        }
+    }, 200);
+}
+
+function stopIOSControlsProtection() {
+    if (iosControlsProtectInterval) {
+        clearInterval(iosControlsProtectInterval);
+        iosControlsProtectInterval = null;
+    }
+    if (iosControlsInteractHandler) {
+        var playerEl = document.getElementById('player');
+        if (playerEl) {
+            playerEl.removeEventListener('touchstart', iosControlsInteractHandler);
+            playerEl.removeEventListener('click', iosControlsInteractHandler);
+        }
+        iosControlsInteractHandler = null;
+    }
+}
+
 // 用 JS 动态设置容器尺寸（而非 CSS 100vh/100vw），
 // 规避 iOS Safari 的 100vh 包含地址栏、导致旋转后内容被网址栏遮挡的问题。
 function applyRotatedSize() {
@@ -1730,10 +1748,9 @@ function applyRotatedSize() {
 }
 
 // 旋转满屏期间每 1.5 秒主动刷新一次 art.controls.show = true。
-// 自定义隐藏计时器延迟为 CONTROL_HIDE_DELAY(2000ms)，在 set show(true) 时
-// 会通过 art:control 事件重置计时器。这里以 1.5 秒间隔（小于 2 秒阈值）主动刷新，
-// 确保计时器在到期前被重置，控制栏不会因自动隐藏而被收回。
-// 相比被动检查（检测到隐藏后再显示），主动刷新不会与用户触摸 toggle 产生振荡。
+// ArtPlayer 自动隐藏计时器在 set show(true) 时会重置，这里以 1.5 秒间隔
+// （小于 Artplayer.CONTROL_HIDE_TIME 阈值）主动刷新，确保计时器在到期前被重置，
+// 控制栏不会因自动隐藏而被收回。
 function startKeepControlsVisible() {
     stopKeepControlsVisible();
     if (art && art.controls) {
