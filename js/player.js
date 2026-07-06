@@ -660,7 +660,7 @@ function initPlayer(videoUrl) {
         autoplay: true,
         pip: false,
         autoSize: false,
-        autoMini: true,
+        autoMini: false,
         screenshot: true,
         setting: true,
         loop: false,
