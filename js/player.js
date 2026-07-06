@@ -96,10 +96,6 @@ let lastLoadedBytes = 0; // 上次记录的已加载字节数
 let lastSpeedCheckTime = 0; // 上次网速检测时间
 let hideTimer = null; // 控制栏自动隐藏计时器（模块作用域，供旋转满屏使用）
 let resetControlsHideTimer = null; // resetHideTimer 函数引用，供旋转满屏重置计时器
-// iOS 控制栏保护：ArtPlayer 无 control 事件，用轮询检测防止全屏时控制栏被瞬间收回
-let iosControlsProtectInterval = null;
-let iosControlsLastInteract = 0;
-let iosControlsInteractHandler = null;
 window._viewingHistoryCache = []; // 内存缓存，替代 localStorage 存储观看历史
 const isWebkit = (typeof window.webkitConvertPointFromNodeToPage === 'function')
 Artplayer.FULLSCREEN_WEB_IN_BODY = true;
@@ -849,14 +845,10 @@ function initPlayer(videoUrl) {
                 pc.style.overflow = 'hidden';
                 pc.style.touchAction = 'none';
             }
-            // iOS 上控制栏会被瞬间收回，启动保护机制
-            startIOSControlsProtection();
         } else {
             document.removeEventListener('mouseout', handleMouseOut);
             // 退出全屏时清理计时器
             clearTimeout(hideTimer);
-            // 停止 iOS 控制栏保护
-            stopIOSControlsProtection();
 
             // 修复 iOS 反复开关全屏导致布局越来越小的 bug
             // ArtPlayer fullscreenWeb 模式会修改容器内联样式，退出时可能未完全清理
@@ -1687,55 +1679,6 @@ function toggleControlsLock() {
 // 呈纵向竖屏满屏布局；再次单击该按钮，返回之前的状态。
 let isRotatedFullscreen = false;
 let rotatedKeepControlsTimer = null;
-
-// ===== iOS 控制栏保护 =====
-// ArtPlayer 没有 control 显隐事件，iOS 全屏时控制栏会被瞬间收回。
-// 用轮询检测：用户交互后 2 秒内如果控制栏被意外隐藏，立即恢复显示。
-function isIOSDevice() {
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-}
-
-function startIOSControlsProtection() {
-    if (!isIOSDevice()) return; // 电脑端不受影响
-    stopIOSControlsProtection();
-    iosControlsLastInteract = Date.now();
-
-    // 监听用户触摸/点击，更新保护期
-    iosControlsInteractHandler = function () {
-        iosControlsLastInteract = Date.now();
-    };
-    var playerEl = document.getElementById('player');
-    if (playerEl) {
-        playerEl.addEventListener('touchstart', iosControlsInteractHandler, { passive: true });
-        playerEl.addEventListener('click', iosControlsInteractHandler);
-    }
-
-    // 每 200ms 轮询：2 秒保护期内如果控制栏被隐藏则恢复
-    iosControlsProtectInterval = setInterval(function () {
-        if (!art || !art.controls) return;
-        if (Date.now() - iosControlsLastInteract < 2000) {
-            if (!art.controls.show) {
-                art.controls.show = true;
-            }
-        }
-    }, 200);
-}
-
-function stopIOSControlsProtection() {
-    if (iosControlsProtectInterval) {
-        clearInterval(iosControlsProtectInterval);
-        iosControlsProtectInterval = null;
-    }
-    if (iosControlsInteractHandler) {
-        var playerEl = document.getElementById('player');
-        if (playerEl) {
-            playerEl.removeEventListener('touchstart', iosControlsInteractHandler);
-            playerEl.removeEventListener('click', iosControlsInteractHandler);
-        }
-        iosControlsInteractHandler = null;
-    }
-}
 
 // 用 JS 动态设置容器尺寸（而非 CSS 100vh/100vw），
 // 规避 iOS Safari 的 100vh 包含地址栏、导致旋转后内容被网址栏遮挡的问题。
