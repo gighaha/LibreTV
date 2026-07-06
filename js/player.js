@@ -1674,7 +1674,6 @@ function toggleControlsLock() {
 // 呈纵向竖屏满屏布局；再次单击该按钮，返回之前的状态。
 let isRotatedFullscreen = false;
 let rotatedResizeHandler = null;
-let rotatedKeepControlsTimer = null;
 
 // 用 JS 动态设置容器尺寸（而非 CSS 100vh/100vw），
 // 规避 iOS Safari 的 100vh 包含地址栏、导致旋转后内容被网址栏遮挡的问题。
@@ -1684,21 +1683,6 @@ function applyRotatedSize() {
     // 旋转后宽=视口高，高=视口宽，宽高互换
     container.style.width = window.innerHeight + 'px';
     container.style.height = window.innerWidth + 'px';
-}
-
-// 尝试隐藏 iOS Safari 的地址栏/工具栏：滚动 body 使其收起。
-// iOS Safari 无法通过 API 强制隐藏，只能在用户手势或滚动时自动收起。
-// 这里通过将页面滚到顶部再触发一次微小滚动来诱导地址栏隐藏。
-function hideIOSToolbar() {
-    const scrollY = window.scrollY;
-    if (scrollY > 0) {
-        window.scrollTo(0, 0);
-    }
-    // 部分版本 iOS 需要先向下滚动再回来才会收起地址栏
-    setTimeout(() => {
-        window.scrollTo(0, 1);
-        setTimeout(() => window.scrollTo(0, 0), 50);
-    }, 100);
 }
 
 function toggleRotatedFullscreen() {
@@ -1730,21 +1714,10 @@ function toggleRotatedFullscreen() {
         };
         window.addEventListener('resize', rotatedResizeHandler);
         window.addEventListener('orientationchange', rotatedResizeHandler);
-        // 尝试隐藏 iOS 工具栏
-        hideIOSToolbar();
-        // 旋转完成后显示控制栏
+        // 旋转完成后显示控制栏，避免 iOS 上控制栏立即被自动隐藏
         setTimeout(() => {
             if (art && art.controls) art.controls.show = true;
         }, 300);
-        // 周期性重置 ArtPlayer 控制栏自动隐藏计时器，避免 3 秒后被自动收回。
-        // ArtPlayer 在 video:timeupdate 中判断 Date.now()-timer>=3000 即隐藏，
-        // 这里每 2 秒把 timer 重置为当前时间，使该条件永不满足，控制栏保持常显。
-        if (rotatedKeepControlsTimer) clearInterval(rotatedKeepControlsTimer);
-        rotatedKeepControlsTimer = setInterval(() => {
-            if (art && art.controls && isRotatedFullscreen) {
-                art.controls.timer = Date.now();
-            }
-        }, 2000);
     } else {
         container.classList.remove('player-rotated-fullscreen');
         container.style.width = '';
@@ -1758,10 +1731,6 @@ function toggleRotatedFullscreen() {
             window.removeEventListener('resize', rotatedResizeHandler);
             window.removeEventListener('orientationchange', rotatedResizeHandler);
             rotatedResizeHandler = null;
-        }
-        if (rotatedKeepControlsTimer) {
-            clearInterval(rotatedKeepControlsTimer);
-            rotatedKeepControlsTimer = null;
         }
     }
 }
