@@ -831,9 +831,15 @@ function initPlayer(videoUrl) {
     function handleFullScreen(isFullScreen, isWeb) {
         if (isFullScreen) {
             document.addEventListener('mouseout', handleMouseOut);
-            // 满屏时禁止页面滚动
+            // 满屏时禁止页面滚动（body + html + playerContainer）
+            document.documentElement.style.overflow = 'hidden';
             document.body.style.overflow = 'hidden';
             document.body.style.touchAction = 'none';
+            const pc = document.getElementById('playerContainer');
+            if (pc) {
+                pc.style.overflow = 'hidden';
+                pc.style.touchAction = 'none';
+            }
         } else {
             document.removeEventListener('mouseout', handleMouseOut);
             // 退出全屏时清理计时器
@@ -857,11 +863,17 @@ function initPlayer(videoUrl) {
                 playerEl.style.width = '';
                 playerEl.style.height = '';
             }
+            document.documentElement.style.overflow = '';
             document.body.style.overflow = '';
             document.body.style.touchAction = '';
             document.body.style.position = '';
             document.body.style.width = '';
             document.body.style.height = '';
+            const pc2 = document.getElementById('playerContainer');
+            if (pc2) {
+                pc2.style.overflow = '';
+                pc2.style.touchAction = '';
+            }
         }
 
         if (!isWeb) {
