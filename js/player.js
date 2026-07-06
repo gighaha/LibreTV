@@ -96,39 +96,7 @@ let lastLoadedBytes = 0; // 上次记录的已加载字节数
 let lastSpeedCheckTime = 0; // 上次网速检测时间
 window._viewingHistoryCache = []; // 内存缓存，替代 localStorage 存储观看历史
 const isWebkit = (typeof window.webkitConvertPointFromNodeToPage === 'function')
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 Artplayer.FULLSCREEN_WEB_IN_BODY = true;
-
-// 修复 iOS PiP：包装原型方法，处理视频未就绪时的请求
-// 必须在 ArtPlayer 初始化之前执行，因为 ArtPlayer 会缓存方法引用
-if (isIOS && HTMLVideoElement.prototype.requestPictureInPicture) {
-    let pipPending = false;
-    const _origRequestPiP = HTMLVideoElement.prototype.requestPictureInPicture;
-    HTMLVideoElement.prototype.requestPictureInPicture = function () {
-        if (pipPending) {
-            return Promise.resolve();
-        }
-        const video = this;
-        // 视频尚未加载元数据时，等待 loadedmetadata 后再请求 PiP
-        if (video.readyState === 0) {
-            return new Promise((resolve, reject) => {
-                const onReady = () => {
-                    video.removeEventListener('loadedmetadata', onReady);
-                    if (pipPending) return resolve();
-                    pipPending = true;
-                    _origRequestPiP.call(video).then(resolve, reject).finally(() => {
-                        pipPending = false;
-                    });
-                };
-                video.addEventListener('loadedmetadata', onReady, { once: true });
-            });
-        }
-        pipPending = true;
-        return _origRequestPiP.call(video).finally(() => {
-            pipPending = false;
-        });
-    };
-}
 
 // 页面加载
 document.addEventListener('DOMContentLoaded', function () {
@@ -690,7 +658,7 @@ function initPlayer(videoUrl) {
         isLive: false,
         muted: false,
         autoplay: true,
-        pip: true,
+        pip: false,
         autoSize: false,
         autoMini: true,
         screenshot: true,
