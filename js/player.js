@@ -1717,7 +1717,6 @@ function toggleControlsLock() {
 // 点击设置齿轮右边的 fullscreenWeb 按钮后，整个播放器容器统一旋转 90°，
 // 呈纵向竖屏满屏布局；再次单击该按钮，返回之前的状态。
 let isRotatedFullscreen = false;
-let rotatedResizeHandler = null;
 let rotatedKeepControlsTimer = null;
 
 // 用 JS 动态设置容器尺寸（而非 CSS 100vh/100vw），
@@ -1774,18 +1773,9 @@ function toggleRotatedFullscreen() {
         document.body.style.width = '100%';
         document.body.style.height = '100%';
         container.classList.add('player-rotated-fullscreen');
-        // 设置精确像素尺寸
+        // 设置精确像素尺寸（仅在进入时计算一次，避免 iOS 地址栏显隐触发 resize
+        // 导致反复更新尺寸，与控制栏显隐产生冲突）
         applyRotatedSize();
-        // iOS 地址栏显隐、横竖屏切换会触发 resize，需重新计算尺寸
-        if (rotatedResizeHandler) {
-            window.removeEventListener('resize', rotatedResizeHandler);
-            window.removeEventListener('orientationchange', rotatedResizeHandler);
-        }
-        rotatedResizeHandler = function () {
-            if (isRotatedFullscreen) applyRotatedSize();
-        };
-        window.addEventListener('resize', rotatedResizeHandler);
-        window.addEventListener('orientationchange', rotatedResizeHandler);
         // 旋转完成后保持控制栏可见
         startKeepControlsVisible();
     } else {
@@ -1798,11 +1788,6 @@ function toggleRotatedFullscreen() {
         document.body.style.position = '';
         document.body.style.width = '';
         document.body.style.height = '';
-        if (rotatedResizeHandler) {
-            window.removeEventListener('resize', rotatedResizeHandler);
-            window.removeEventListener('orientationchange', rotatedResizeHandler);
-            rotatedResizeHandler = null;
-        }
     }
 }
 
