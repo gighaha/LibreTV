@@ -890,6 +890,9 @@ function initPlayer(videoUrl) {
     // 播放器加载完成后初始隐藏工具栏
     art.on('ready', () => {
         hideControls();
+
+        // 拦截满屏按钮，改为触发旋转竖屏满屏
+        setupRotatedFullscreenButton();
         
         // 如果是 WebKit 浏览器（使用原生 HLS 播放），启动原生模式的网速监测
         if (isWebkit && !currentHls) {
@@ -1664,6 +1667,47 @@ function toggleControlsLock() {
     icon.innerHTML = controlsLocked
         ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d=\"M12 15v2m0-8V7a4 4 0 00-8 0v2m8 0H4v8h16v-8H6v-6z\"/>'
         : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d=\"M15 11V7a3 3 0 00-6 0v4m-3 4h12v6H6v-6z\"/>';
+}
+
+// ===== 满屏按钮触发的旋转竖屏满屏 =====
+// 点击满屏按钮后，整个播放器容器统一旋转 90°，呈纵向竖屏满屏布局；
+// 再次单击满屏按钮，返回之前的状态。
+let isRotatedFullscreen = false;
+function toggleRotatedFullscreen() {
+    const container = document.getElementById('playerContainer');
+    if (!container) return;
+    isRotatedFullscreen = !isRotatedFullscreen;
+    if (isRotatedFullscreen) {
+        // 进入旋转满屏前，先退出原生全屏 / Web 全屏，避免状态叠加
+        if (art) {
+            art.fullscreen = false;
+            art.fullscreenWeb = false;
+        }
+        container.classList.add('player-rotated-fullscreen');
+        document.documentElement.style.overflow = 'hidden';
+        document.body.style.overflow = 'hidden';
+    } else {
+        container.classList.remove('player-rotated-fullscreen');
+        document.documentElement.style.overflow = '';
+        document.body.style.overflow = '';
+    }
+}
+
+// 拦截 ArtPlayer 满屏按钮的点击，改为触发旋转竖屏满屏。
+// 在 #player（按钮的祖先）上以捕获阶段监听，并在事件抵达按钮前阻止其继续传播，
+// 这样 ArtPlayer 自身注册在按钮上的全屏逻辑不会被执行。
+function setupRotatedFullscreenButton() {
+    const playerEl = document.getElementById('player');
+    if (!playerEl || playerEl._rotatedFullscreenBound) return;
+    playerEl._rotatedFullscreenBound = true;
+    playerEl.addEventListener('click', function (e) {
+        const btn = e.target.closest('.art-control-fullscreen');
+        if (btn) {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleRotatedFullscreen();
+        }
+    }, true);
 }
 
 // 支持在iframe中关闭播放器

@@ -317,6 +317,32 @@ input:checked + .slider:before {
     width: 100%; height: 100%;
 }
 
+/* ===== 满屏按钮触发的旋转竖屏满屏模式 =====
+   整个播放器容器统一旋转 90°，呈纵向竖屏满屏布局。
+   内部视频、控制栏、遮罩等所有元素随容器同步旋转，无局部错位。 */
+#playerContainer.player-rotated-fullscreen {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    max-width: none !important;
+    margin: 0 !important;
+    /* 宽高互换：旋转后宽=视口高，高=视口宽，从而铺满整屏 */
+    width: 100vh;
+    height: 100vw;
+    /* 绕左上角旋转 90°，再平移使容器铺满视口 */
+    transform: rotate(90deg) translateY(-100vw);
+    transform-origin: 0 0;
+    z-index: 9999;
+    background: #000;
+    overflow: hidden;
+}
+
+#playerContainer.player-rotated-fullscreen #player {
+    width: 100% !important;
+    height: 100% !important;
+    aspect-ratio: auto !important;
+}
+
 /* 资源信息卡片区 */
 #resourceInfoBarContainer {
     align-items: center;
