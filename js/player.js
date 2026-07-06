@@ -827,12 +827,22 @@ function initPlayer(videoUrl) {
     resetControlsHideTimer = resetHideTimer;
 
     // 监听 ArtPlayer 控制栏显示/隐藏事件，修复 iOS 上控制栏激活后瞬间收回的 bug
-    // 当控制栏被显示时，启动 2 秒无操作自动收回计时器
+    // iOS 地址栏显隐会触发 resize 事件，ArtPlayer 内部响应 resize 时可能短暂隐藏控制栏，
+    // 导致控制栏刚激活就被收回。这里通过守卫防止 2 秒内被非用户操作隐藏。
     art.on('art:control', function (state) {
         if (state) {
             // 控制栏被激活显示，记录时间并启动 2 秒计时器
             controlsLastShownTime = Date.now();
             resetHideTimer();
+        } else {
+            // 控制栏被隐藏，检查是否在 2 秒保护期内被意外隐藏（如 resize 导致）
+            var elapsed = Date.now() - controlsLastShownTime;
+            if (elapsed < CONTROL_HIDE_DELAY && controlsLastShownTime > 0) {
+                // 在保护期内被隐藏，立即重新显示控制栏，防止 iOS resize 冲突
+                if (art && art.controls) {
+                    art.controls.show = true;
+                }
+            }
         }
     });
 
