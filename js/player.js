@@ -1669,9 +1669,9 @@ function toggleControlsLock() {
         : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d=\"M15 11V7a3 3 0 00-6 0v4m-3 4h12v6H6v-6z\"/>';
 }
 
-// ===== 满屏按钮触发的旋转竖屏满屏 =====
-// 点击满屏按钮后，整个播放器容器统一旋转 90°，呈纵向竖屏满屏布局；
-// 再次单击满屏按钮，返回之前的状态。
+// ===== 设置右边的按钮（网页全屏按钮）触发的旋转竖屏满屏 =====
+// 点击设置齿轮右边的 fullscreenWeb 按钮后，整个播放器容器统一旋转 90°，
+// 呈纵向竖屏满屏布局；再次单击该按钮，返回之前的状态。
 let isRotatedFullscreen = false;
 function toggleRotatedFullscreen() {
     const container = document.getElementById('playerContainer');
@@ -1693,15 +1693,15 @@ function toggleRotatedFullscreen() {
     }
 }
 
-// 拦截 ArtPlayer 满屏按钮的点击，改为触发旋转竖屏满屏。
-// 在 #player（按钮的祖先）上以捕获阶段监听，并在事件抵达按钮前阻止其继续传播，
-// 这样 ArtPlayer 自身注册在按钮上的全屏逻辑不会被执行。
+// 拦截 ArtPlayer "设置右边"按钮（网页全屏按钮 .art-control-fullscreenWeb）的点击，
+// 改为触发旋转竖屏满屏。在 #player（按钮的祖先）上以捕获阶段监听，并在事件抵达按钮前
+// 阻止其继续传播，这样 ArtPlayer 自身注册在按钮上的网页全屏逻辑不会被执行。
 function setupRotatedFullscreenButton() {
     const playerEl = document.getElementById('player');
     if (!playerEl || playerEl._rotatedFullscreenBound) return;
     playerEl._rotatedFullscreenBound = true;
     playerEl.addEventListener('click', function (e) {
-        const btn = e.target.closest('.art-control-fullscreen');
+        const btn = e.target.closest('.art-control-fullscreenWeb');
         if (btn) {
             e.preventDefault();
             e.stopPropagation();
