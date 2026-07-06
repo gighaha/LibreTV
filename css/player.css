@@ -6,6 +6,8 @@ body, html {
     background-color: #0f1622;
     color: white;
     overflow: auto;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 /* Critical header and navigation styles */
