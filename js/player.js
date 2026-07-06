@@ -867,6 +867,14 @@ function initPlayer(videoUrl) {
     // 全屏 Web 模式处理
     art.on('fullscreenWeb', function (isFullScreen) {
         handleFullScreen(isFullScreen, true);
+        // 进入网页全屏时主动刷新一次控制栏计时器
+        // 点击的是按钮而非 video，不会触发 ArtPlayer 的 click → 不刷新 control.timer，
+        // 导致 video:timeupdate 检测到超时立即隐藏（"瞬间收回"）。
+        // 这里主动 show=true 触发 setter → emit("control") → 刷新 timer，
+        // 之后控制栏仍按 ArtPlayer 默认 CONTROL_HIDE_TIME 自动隐藏，与网页播放器一致。
+        if (isFullScreen && art.controls) {
+            art.controls.show = true;
+        }
     });
 
     // 全屏模式处理
