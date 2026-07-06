@@ -840,10 +840,6 @@ function initPlayer(videoUrl) {
                 pc.style.overflow = 'hidden';
                 pc.style.touchAction = 'none';
             }
-            // 满屏时锁定横屏方向
-            if (window.screen.orientation && window.screen.orientation.lock) {
-                window.screen.orientation.lock('landscape').catch(() => {});
-            }
         } else {
             document.removeEventListener('mouseout', handleMouseOut);
             // 退出全屏时清理计时器
@@ -878,9 +874,15 @@ function initPlayer(videoUrl) {
                 pc2.style.overflow = '';
                 pc2.style.touchAction = '';
             }
-            // 退出满屏时解锁方向
-            if (window.screen.orientation && window.screen.orientation.unlock) {
-                window.screen.orientation.unlock();
+        }
+
+        if (!isWeb) {
+            if (window.screen.orientation && window.screen.orientation.lock) {
+                window.screen.orientation.lock('landscape')
+                    .then(() => {
+                    })
+                    .catch((error) => {
+                    });
             }
         }
     }
