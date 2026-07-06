@@ -8,6 +8,7 @@ body, html {
     overflow: auto;
     -webkit-user-select: none;
     user-select: none;
+    -webkit-touch-callout: none;
 }
 
 /* Critical header and navigation styles */
