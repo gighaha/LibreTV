@@ -1673,6 +1673,18 @@ function toggleControlsLock() {
 // 点击设置齿轮右边的 fullscreenWeb 按钮后，整个播放器容器统一旋转 90°，
 // 呈纵向竖屏满屏布局；再次单击该按钮，返回之前的状态。
 let isRotatedFullscreen = false;
+let rotatedResizeHandler = null;
+
+// 用 JS 动态设置容器尺寸（而非 CSS 100vh/100vw），
+// 规避 iOS Safari 的 100vh 包含地址栏、导致旋转后内容被网址栏遮挡的问题。
+function applyRotatedSize() {
+    const container = document.getElementById('playerContainer');
+    if (!container) return;
+    // 旋转后宽=视口高，高=视口宽，宽高互换
+    container.style.width = window.innerHeight + 'px';
+    container.style.height = window.innerWidth + 'px';
+}
+
 function toggleRotatedFullscreen() {
     const container = document.getElementById('playerContainer');
     if (!container) return;
@@ -1683,13 +1695,43 @@ function toggleRotatedFullscreen() {
             art.fullscreen = false;
             art.fullscreenWeb = false;
         }
-        container.classList.add('player-rotated-fullscreen');
+        // 禁止页面滚动，避免 iOS 滚动导致地址栏显隐抖动
         document.documentElement.style.overflow = 'hidden';
         document.body.style.overflow = 'hidden';
+        document.body.style.position = 'fixed';
+        document.body.style.width = '100%';
+        document.body.style.height = '100%';
+        container.classList.add('player-rotated-fullscreen');
+        // 设置精确像素尺寸
+        applyRotatedSize();
+        // iOS 地址栏显隐、横竖屏切换会触发 resize，需重新计算尺寸
+        if (rotatedResizeHandler) {
+            window.removeEventListener('resize', rotatedResizeHandler);
+            window.removeEventListener('orientationchange', rotatedResizeHandler);
+        }
+        rotatedResizeHandler = function () {
+            if (isRotatedFullscreen) applyRotatedSize();
+        };
+        window.addEventListener('resize', rotatedResizeHandler);
+        window.addEventListener('orientationchange', rotatedResizeHandler);
+        // 旋转完成后显示控制栏，避免 iOS 上控制栏立即被自动隐藏
+        setTimeout(() => {
+            if (art && art.controls) art.controls.show = true;
+        }, 300);
     } else {
         container.classList.remove('player-rotated-fullscreen');
+        container.style.width = '';
+        container.style.height = '';
         document.documentElement.style.overflow = '';
         document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.width = '';
+        document.body.style.height = '';
+        if (rotatedResizeHandler) {
+            window.removeEventListener('resize', rotatedResizeHandler);
+            window.removeEventListener('orientationchange', rotatedResizeHandler);
+            rotatedResizeHandler = null;
+        }
     }
 }
 
