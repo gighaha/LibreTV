@@ -99,6 +99,22 @@ const isWebkit = (typeof window.webkitConvertPointFromNodeToPage === 'function')
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 Artplayer.FULLSCREEN_WEB_IN_BODY = true;
 
+// 修复 iOS PiP 并发请求报错：包装原型方法防止重复调用
+// 必须在 ArtPlayer 初始化之前执行，因为 ArtPlayer 会缓存方法引用
+if (isIOS && HTMLVideoElement.prototype.requestPictureInPicture) {
+    let pipPending = false;
+    const _origRequestPiP = HTMLVideoElement.prototype.requestPictureInPicture;
+    HTMLVideoElement.prototype.requestPictureInPicture = function () {
+        if (pipPending) {
+            return Promise.resolve();
+        }
+        pipPending = true;
+        return _origRequestPiP.call(this).finally(() => {
+            pipPending = false;
+        });
+    };
+}
+
 // 页面加载
 document.addEventListener('DOMContentLoaded', function () {
     // 保持页面可滚动，仅在 iOS 全屏时锁定滚动
@@ -879,19 +895,6 @@ function initPlayer(videoUrl) {
         // 如果是 WebKit 浏览器（使用原生 HLS 播放），启动原生模式的网速监测
         if (isWebkit && !currentHls) {
             initSpeedMonitor(null, art.video);
-        }
-
-        // 修复 iOS PiP 并发请求报错：包装 requestPictureInPicture 防止重复调用
-        if (art.video && art.video.requestPictureInPicture) {
-            let pipPending = false;
-            const originalRequestPiP = art.video.requestPictureInPicture.bind(art.video);
-            art.video.requestPictureInPicture = function () {
-                if (pipPending) return Promise.reject(new DOMException('PiP request already in progress'));
-                pipPending = true;
-                return originalRequestPiP().finally(() => {
-                    pipPending = false;
-                });
-            };
         }
     });
 
