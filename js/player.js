@@ -899,7 +899,7 @@ function initPlayer(videoUrl) {
         // 添加播放速度控件到控制栏（替代设置按钮）
         const rates = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
         let rateMenuEl = null;
-        const rateSel = art.controls.add({
+        art.controls.add({
             name: 'playback-rate',
             position: 'right',
             html: '1.0x',
@@ -911,35 +911,39 @@ function initPlayer(videoUrl) {
                 padding: '0 4px',
             },
             tooltip: '播放速度',
-            click: function () {
-                if (rateMenuEl) {
-                    closeRateMenu();
-                    return;
-                }
-                rateMenuEl = document.createElement('div');
-                rateMenuEl.style.cssText = 'position:absolute;bottom:100%;right:0;margin-bottom:8px;background:#222;border:1px solid #444;border-radius:6px;padding:4px 0;z-index:9999;min-width:64px;';
-                rates.forEach(function (r) {
-                    const item = document.createElement('div');
-                    const label = r.toFixed(1).replace(/\.0$/, '') + 'x';
-                    item.textContent = label;
-                    const isActive = art.playbackRate === r;
-                    item.style.cssText = 'padding:6px 14px;cursor:pointer;font-size:13px;color:' + (isActive ? '#23ade5' : '#ccc') + ';white-space:nowrap;text-align:center;';
-                    item.addEventListener('click', function (e) {
-                        e.stopPropagation();
-                        art.playbackRate = r;
-                        art.controls['playback-rate'].html = label;
-                        art.notice.show = label;
+            mounted: function () {
+                const self = this;
+                this.$dom.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    if (rateMenuEl) {
                         closeRateMenu();
+                        return;
+                    }
+                    rateMenuEl = document.createElement('div');
+                    rateMenuEl.style.cssText = 'position:absolute;bottom:100%;right:0;margin-bottom:8px;background:#222;border:1px solid #444;border-radius:6px;padding:4px 0;z-index:9999;min-width:64px;';
+                    rates.forEach(function (r) {
+                        const item = document.createElement('div');
+                        const label = r.toFixed(1).replace(/\.0$/, '') + 'x';
+                        item.textContent = label;
+                        const isActive = art.playbackRate === r;
+                        item.style.cssText = 'padding:6px 14px;cursor:pointer;font-size:13px;color:' + (isActive ? '#23ade5' : '#ccc') + ';white-space:nowrap;text-align:center;';
+                        item.addEventListener('click', function (ev) {
+                            ev.stopPropagation();
+                            art.playbackRate = r;
+                            art.controls['playback-rate'].html = label;
+                            art.notice.show = label;
+                            closeRateMenu();
+                        });
+                        item.addEventListener('mouseenter', function () { this.style.background = '#333'; });
+                        item.addEventListener('mouseleave', function () { this.style.background = ''; });
+                        rateMenuEl.appendChild(item);
                     });
-                    item.addEventListener('mouseenter', function () { this.style.background = '#333'; });
-                    item.addEventListener('mouseleave', function () { this.style.background = ''; });
-                    rateMenuEl.appendChild(item);
+                    self.$dom.style.position = 'relative';
+                    self.$dom.appendChild(rateMenuEl);
+                    setTimeout(function () {
+                        document.addEventListener('click', closeRateMenu, { once: true });
+                    }, 0);
                 });
-                this.parentNode.style.position = 'relative';
-                this.parentNode.appendChild(rateMenuEl);
-                setTimeout(function () {
-                    document.addEventListener('click', closeRateMenu, { once: true });
-                }, 0);
             }
         });
         function closeRateMenu() {
