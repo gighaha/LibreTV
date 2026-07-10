@@ -452,6 +452,14 @@ input:checked + .slider:before {
     line-height: 1;
 }
 
+/* 旋转全屏时强制控制栏始终可见，防止被 ArtPlayer 自动隐藏机制收回。
+   ArtPlayer 会在 video:timeupdate 中检查 timer 过期后设置 show=false，
+   从而移除 art-hover / art-control-show 类并隐藏 .art-bottom。
+   这里用 !important 从 CSS 层面彻底阻断控制栏隐藏。 */
+#playerContainer.player-rotated-fullscreen .art-bottom {
+    opacity: 1 !important;
+}
+
 /* 移动端适配 */
 @media (max-width: 640px) {
     .art-speed-display {

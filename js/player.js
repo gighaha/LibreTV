@@ -856,7 +856,35 @@ function initPlayer(videoUrl) {
     art.on('ready', () => {
         // 拦截满屏按钮，改为触发旋转竖屏满屏
         setupRotatedFullscreenButton();
-        
+
+        // 双重保险：覆盖 art.controls.show setter，在旋转全屏期间拦截 show=false，
+        // 将其重定向为 show=true 并重置 timer，防止 video:timeupdate 中自动隐藏
+        // 控制栏的逻辑生效。配合 CSS 的 !important 规则，从 JS + CSS 两层彻底阻断。
+        // 沿原型链向上查找 show 属性描述符（可能在组件基类上而非直接原型）
+        var showDesc = null;
+        var proto = Object.getPrototypeOf(art.controls);
+        while (proto && !showDesc) {
+            showDesc = Object.getOwnPropertyDescriptor(proto, 'show');
+            proto = Object.getPrototypeOf(proto);
+        }
+        if (showDesc && showDesc.set) {
+            var _origShowSet = showDesc.set;
+            var _origShowGet = showDesc.get;
+            Object.defineProperty(art.controls, 'show', {
+                get: function () { return _origShowGet.call(this); },
+                set: function (v) {
+                    if (isRotatedFullscreen && v === false) {
+                        // 重定向为 true，触发 timer 重置和 art-hover 类添加
+                        _origShowSet.call(this, true);
+                        return;
+                    }
+                    _origShowSet.call(this, v);
+                },
+                configurable: true,
+                enumerable: true
+            });
+        }
+
         // 如果是 WebKit 浏览器（使用原生 HLS 播放），启动原生模式的网速监测
         if (isWebkit && !currentHls) {
             initSpeedMonitor(null, art.video);
