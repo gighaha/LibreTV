@@ -4,6 +4,7 @@ import axios from 'axios';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -13,6 +14,7 @@ const __dirname = path.dirname(__filename);
 
 const config = {
   port: process.env.PORT || 8080,
+  password: process.env.PASSWORD || '',
   corsOrigin: process.env.CORS_ORIGIN || '*',
   timeout: parseInt(process.env.REQUEST_TIMEOUT || '5000'),
   maxRetries: parseInt(process.env.MAX_RETRIES || '2'),
@@ -42,6 +44,25 @@ app.use((req, res, next) => {
   next();
 });
 
+function sha256Hash(input) {
+  return new Promise((resolve) => {
+    const hash = crypto.createHash('sha256');
+    hash.update(input);
+    resolve(hash.digest('hex'));
+  });
+}
+
+async function renderPage(filePath, password) {
+  let content = fs.readFileSync(filePath, 'utf8');
+  if (password !== '') {
+    const sha256 = await sha256Hash(password);
+    content = content.replace('{{PASSWORD}}', sha256);
+  } else {
+    content = content.replace('{{PASSWORD}}', '');
+  }
+  return content;
+}
+
 app.get(['/', '/index.html', '/player.html'], async (req, res) => {
   try {
     let filePath;
@@ -54,7 +75,7 @@ app.get(['/', '/index.html', '/player.html'], async (req, res) => {
         break;
     }
     
-    const content = fs.readFileSync(filePath, 'utf8');
+    const content = await renderPage(filePath, config.password);
     res.send(content);
   } catch (error) {
     console.error('页面渲染错误:', error);
@@ -65,7 +86,7 @@ app.get(['/', '/index.html', '/player.html'], async (req, res) => {
 app.get('/s=:keyword', async (req, res) => {
   try {
     const filePath = path.join(__dirname, 'index.html');
-    const content = fs.readFileSync(filePath, 'utf8');
+    const content = await renderPage(filePath, config.password);
     res.send(content);
   } catch (error) {
     console.error('搜索页面渲染错误:', error);
@@ -97,8 +118,50 @@ function isValidUrl(urlString) {
   }
 }
 
+// 验证代理请求的鉴权
+function validateProxyAuth(req) {
+  const authHash = req.query.auth;
+  const timestamp = req.query.t;
+  
+  // 获取服务器端密码哈希
+  const serverPassword = config.password;
+  if (!serverPassword) {
+    console.error('服务器未设置 PASSWORD 环境变量，代理访问被拒绝');
+    return false;
+  }
+  
+  // 使用 crypto 模块计算 SHA-256 哈希
+  const serverPasswordHash = crypto.createHash('sha256').update(serverPassword).digest('hex');
+  
+  if (!authHash || authHash !== serverPasswordHash) {
+    console.warn('代理请求鉴权失败：密码哈希不匹配');
+    console.warn(`期望: ${serverPasswordHash}, 收到: ${authHash}`);
+    return false;
+  }
+  
+  // 验证时间戳（10分钟有效期）
+  if (timestamp) {
+    const now = Date.now();
+    const maxAge = 10 * 60 * 1000; // 10分钟
+    if (now - parseInt(timestamp) > maxAge) {
+      console.warn('代理请求鉴权失败：时间戳过期');
+      return false;
+    }
+  }
+  
+  return true;
+}
+
 app.get('/proxy/:encodedUrl', async (req, res) => {
   try {
+    // 验证鉴权
+    if (!validateProxyAuth(req)) {
+      return res.status(401).json({
+        success: false,
+        error: '代理访问未授权：请检查密码配置或鉴权参数'
+      });
+    }
+
     const encodedUrl = req.params.encodedUrl;
     const targetUrl = decodeURIComponent(encodedUrl);
 
@@ -175,8 +238,13 @@ app.use((req, res) => {
 // 启动服务器
 app.listen(config.port, () => {
   console.log(`服务器运行在 http://localhost:${config.port}`);
+  if (config.password !== '') {
+    console.log('用户登录密码已设置');
+  } else {
+    console.log('警告: 未设置 PASSWORD 环境变量，用户将被要求设置密码');
+  }
   if (config.debug) {
     console.log('调试模式已启用');
-    console.log('配置:', config);
+    console.log('配置:', { ...config, password: config.password ? '******' : '' });
   }
 });
