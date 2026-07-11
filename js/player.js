@@ -861,6 +861,7 @@ function initPlayer(videoUrl) {
         // 将其重定向为 show=true 并重置 timer，防止 video:timeupdate 中自动隐藏
         // 控制栏的逻辑生效。配合 CSS 的 !important 规则，从 JS + CSS 两层彻底阻断。
         // 沿原型链向上查找 show 属性描述符（可能在组件基类上而非直接原型）
+        // 注意：ArtPlayer 的 show 只有 setter 没有 getter，不能用 get 代理。
         var showDesc = null;
         var proto = Object.getPrototypeOf(art.controls);
         while (proto && !showDesc) {
@@ -870,12 +871,19 @@ function initPlayer(videoUrl) {
         if (showDesc && showDesc.set) {
             var _origShowSet = showDesc.set;
             var _origShowGet = showDesc.get;
+            // 内部跟踪当前 show 状态，因为原属性可能没有 getter
+            var _showState = _origShowGet ? _origShowGet.call(art.controls) : true;
             Object.defineProperty(art.controls, 'show', {
-                get: function () { return _origShowGet.call(this); },
+                get: function () {
+                    if (_origShowGet) return _origShowGet.call(this);
+                    return _showState;
+                },
                 set: function (v) {
+                    _showState = v;
                     if (isRotatedFullscreen && v === false) {
                         // 重定向为 true，触发 timer 重置和 art-hover 类添加
                         _origShowSet.call(this, true);
+                        _showState = true;
                         return;
                     }
                     _origShowSet.call(this, v);
