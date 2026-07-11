@@ -5,6 +5,7 @@ LABEL description="LibreTV - 免费在线视频搜索与观看平台"
 
 # 设置环境变量
 ENV PORT=8080
+ENV PASSWORD=123456
 ENV CORS_ORIGIN=*
 ENV DEBUG=false
 ENV REQUEST_TIMEOUT=5000
